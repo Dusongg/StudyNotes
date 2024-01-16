@@ -1,0 +1,559 @@
+[toc]
+
+
+
+# 1 C文件接口
+
+## 1.1 `fopen`
+
+- `fopen`新建的文件，如果是相对路径，在进程的工作路径下创建-
+- `w`：清空写入
+- `a`：追加
+
+## 1.2 `fwrite`、`fread`、`rewind`、`fclose`
+
+```cpp
+  1 #include <stdio.h>
+  2 #include <string.h>
+  3 #include <stdlib.h>
+  4 int main() {
+  5     FILE* f = fopen("bite.txt", "w+");
+  6     const char* msg = "linux so easy\n";
+  7     fwrite(msg, strlen(msg), 1, f);
+  8 
+  9     rewind(f);   //重置偏移量！！！                                                                                                         
+ 10     char buffer[strlen(msg)];
+ 11     fread(buffer, 1, strlen(msg), f);
+ 12     printf("%s\n", buffer);
+ 13     fclose(f);
+ 14 }
+```
+
+
+
+
+
+# 2 文件系统调用
+
+## 2.1 `open` 
+
+```cpp
+//头文件：
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+int open(const char* pathname, int flags);
+int open(const char* pathname, int flags, mode_t mode);
+```
+
+### 2.1.1 参数2：`flags`
+
+1. `O_RDONLY`：只读
+2. `0_WRONLY`:   只写
+3. `O_CREAT`：如果文件不存在，则创建文件到path路径下
+4. `0_TRUNC`：打开的时候先清空（truncate）
+5. `O_APPEND`：在追加模式下打开，写入时在已有内容后追加
+
+### 2.1.2 参数3：`mode`
+
+> - `umask`:权限掩码：权限 & ~`umask` ---> 最终权限（八进制, eg.  `0xxx`）
+>
+> - `umask`系统调用改变`umask`：
+>   - 头文件：`<sys/types.h>    <sys/stat.h>`
+>   - ``mode_t umask(mode_t mask);`
+>   - 只改变当前进程的`umask`，不改变系统的， 进程里用自己进程的`umask`
+
+### 2.1.3 返回值——`file descriptor`
+
+- 实质为**一个数组下标**（详细看3.2小节）
+
+**当调用`write`时，将`fd`传递给进程，进程根据`files`指针找到文件描述符表，然后由对应下标(`fd`)找到打开的文件`file`**
+
+- 而C语言打开文件返回的`FILE`是C语言自己封装的结构体，里面一定含由文件描述符
+
+```cpp
+cout << stdin->_fileno << endl;  //0
+cout << stdout->_fileno << endl;  //1
+cout << stderr->_fileno << endl;  //2
+```
+
+
+
+## 2.2 write
+
+```cpp
+#include <unistd.h>
+
+ssize_t write(int fd, const void* buf, size_t count);
+```
+
+- 参数1：文件描述符
+- 参数2：写入内容
+- 参数3：写入内容的长度`strlen(messsage)`
+
+## 2.3 read
+
+```cpp
+#include <unistd.h>
+
+ssize_t read(int fd, void *buf, size_t count);
+```
+
+- 返回值
+  - 大于0：返回读取的字节数
+  - 0：写端关闭情况
+  - -1：读取错误
+
+![](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20231208222242026.png)
+
+## 2.4 close
+
+# 3 文件的本质
+
+## 3.1 `struct file`
+
+操作系统维护一个被打开文件的信息：**`struct file`**, 包含：
+
+1. 在磁盘的什么位置
+2. 基本属性：权限，大小，读写位置，谁打开的
+3. 文件的内核缓冲区信息
+4. `struct file* next`指针，将不同文件链接起来
+
+## 3.2 一个进程如何与多个文件相关联？
+
+- **`task_struct`中含有一个`stuct files_struct *files`记录自己打开文件的信息，`stuct files_struct *file`里包含一个`struct file *fd_array[]`指针数组，存放文件指针**（所以open时，会选择一个空的`fd_array`位置的下标返回）
+- `struct file *fd_array[]`文件描述符表，数组加标0、1、2分别指向三个默认打开的文件：**`stdin（键盘文件）`、`stdout（显示器文件）`、`stderr（显示器文件）`**
+
+![image-20231102134743325](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20231102134743325.png)
+
+```cpp
+  1 #include <stdio.h>
+  2 #include <unistd.h>
+  3 #include <string.h>
+  4 #include <sys/types.h>
+  5 #include <sys/stat.h>
+  6 #include <fcntl.h>
+  7 
+  8 int main() {
+  9     const char* msg = "hello\n";
+ 10     write(1, msg, strlen(msg));   //想显示器写入
+ 11 
+ 12     char buffer[1024];
+ 13     ssize_t s = read(0, buffer, sizeof(buffer));   //向键盘读数据
+ 14     buffer[s] = '\0';                                                                                                                       
+ 15     printf("echo : %s\n", buffer);
+ 16     return 0;
+ 17 }
+```
+
+
+
+# 4 重定向
+
+## 4.1 文件描述符对应的分配规则？
+
+> 从0下标开始，寻找最小没有使用的数组位置
+
+```cpp
+int main() {
+    close(1);
+    int fd = open(filename, O_CREAT|O_WRONLY|O_TRUNC, 0666);
+    if (fd < 0) {
+		perror("open");
+        return 1;
+    }
+    const char *msg = "hello\n";
+   	for (int i = 0; i < 5; i++) {
+        //因为关闭了1，open文件之后占用1这个位置，写入从显示器重定向到了文件中
+        write(1, msg, strlen(msg));                                                                                                       
+    }
+    close(fd);
+}
+```
+
+## 4.2 `dup2`
+
+```cpp
+#include <unistd.h>
+
+int dup2(int oldfd, int newfd)   //makes newfd be the copy of oldfd      
+```
+
+重定向：将文件描述符对应下标的指针拷贝到要重定向的文件的位置的指针
+
+- **`fd_array[oldfd]`拷贝到`fd_array[newfd]`**, 拷贝之后需要`close(oldfd)`
+
+```cpp
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdio.h>
+
+int main() {
+    int fd = open("test.txt", O_WRONLY|O_TRUNC|O_CREAT, 0666);
+
+    dup2(fd, 1);     //fid->标准输入
+    close(fd);
+    printf("printf->test.txt\n");
+    fprintf(stdout, "fprintf->test.txt\n");   //默认向标准输出流（fd = 1）输出
+    return 0;
+}
+```
+
+
+
+## 4.3 重定向`stdout`和`stderr`
+
+```cpp
+int mian() {
+   	fprintf(stdout, "normal msg");
+    fprintf(stdout, "normal msg");
+    fprintf(stdout, "normal msg");
+    
+    fprintf(stderr, "error msg");
+    fprintf(stderr, "error msg");
+    fprintf(stderr, "error msg");
+}
+//gcc test.c -o test
+```
+
+- `./test > normal.log`:normal msg重定向到normal.log， error msg打印到屏幕
+
+
+
+将`stdout`和`stderr`都重定向到一个文件`all.log`
+
+1. `./test &>all.log`
+2. `./test >&all.log`
+3. `./test >all.log 2>&1`
+4. `./test 2>all.log 1>all.log`
+
+# 5 缓冲区
+
+- C的输出接口输出到用户级缓冲区（该缓冲区不在系统中）
+- 显示器的文件的刷新方案是**行刷新**，所以在`printf`执行完成遇到`\n`就会将数据进行刷新
+
+- 缓冲区刷新策略：
+  - 无缓冲——直接刷新
+  - 行缓冲——碰到\n刷新 —— 显示器
+  - 全缓冲——缓冲区满了才刷新 —— 文件写入
+  - 进程退出
+- `fprintf/fwrite`等向用户级缓冲区中写入，当缓冲区刷新时调用`write`系统调用接口（因此，C中`fflush`函数一定封装了`write`）,`write`向系统级缓冲区中写入 
+
+- 为什么要有用户级的缓冲区
+  - 解决效率问题
+  - 配合格式化
+- 用户及的缓冲区在哪里？—— 存在FILE结构体中，
+
+```cpp
+  1 #include <stdio.h>
+  2 #include <unistd.h>
+  3 #include <string.h>
+  4 
+  5 int main() {
+  6     const char* fstr = "hello fwrite\n";
+  7     const char* str = "hello write\n";
+  8 
+  9     printf("hello printf, pid:%d, ppid:%d\n", getpid(), getppid());
+ 10     fprintf(stdout, "hello fprintf, pid:%d, ppid:%d\n", getpid(), getppid());
+ 11     fwrite(fstr, strlen(fstr), 1, stdout);
+ 12                       
+ 13     write(1, str, strlen(str));
+ 14 
+ 15     fork();
+ 16 
+ 17 }
+
+```
+
+![image-20231104152320757](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20231104152320757.png)
+
+**write为系统调用接口，直接刷新，而由于重定向输出到文件，用户级缓冲区的刷新策略更改为全缓冲，fork后子进程写时拷贝 ，而缓冲区也会随着FILE结构体的拷贝而拷贝，当子进程退出后刷新缓冲区，接着父进程退出也刷新缓冲区**
+
+- FILE结构体：
+
+```cpp
+在/usr/include/libio.h
+struct _IO_FILE {
+ int _flags; /* High-order word is _IO_MAGIC; rest is flags. */
+#define _IO_file_flags _flags
+ //缓冲区相关
+ /* The following pointers correspond to the C++ streambuf protocol. */
+ /* Note: Tk uses the _IO_read_ptr and _IO_read_end fields directly. */
+ char* _IO_read_ptr; /* Current read pointer */
+ char* _IO_read_end; /* End of get area. */
+ char* _IO_read_base; /* Start of putback+get area. */
+ char* _IO_write_base; /* Start of put area. */
+ char* _IO_write_ptr; /* Current put pointer. */
+ char* _IO_write_end; /* End of put area. */
+ char* _IO_buf_base; /* Start of reserve area. */
+ char* _IO_buf_end; /* End of reserve area. */
+ /* The following fields are used to support backing up and undo. */
+ char *_IO_save_base; /* Pointer to start of non-current get area. */
+ char *_IO_backup_base; /* Pointer to first valid character of backup area */
+ char *_IO_save_end; /* Pointer to end of non-current get area. */
+ struct _IO_marker *_markers;
+ struct _IO_FILE *_chain;
+ int _fileno; //封装的文件描述符
+#if 0
+ int _blksize;
+#else
+ int _flags2;
+#endif
+ _IO_off_t _old_offset; /* This used to be _offset but it's too small. */
+#define __HAVE_COLUMN /* temporary */
+ /* 1+column number of pbase(); 0 is unknown. */
+ unsigned short _cur_column;
+ signed char _vtable_offset;
+ char _shortbuf[1];
+ /* char* _save_gptr; char* _save_egptr; */
+ _IO_lock_t *_lock;
+#ifdef _IO_USE_OLD_IO_FILE
+};
+```
+
+
+
+# 6 硬盘（固态硬盘(SSD)/机械硬盘(磁盘)）
+
+https://xiaolincoding.com/os/6_file_system/file_system.html#_7-1-%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E5%85%A8%E5%AE%B6%E6%A1%B6
+
+- 磁盘上存储的文件 = 文件的内容 + 文件的属性
+- 文件内容——数据块， 文件属性 —— `inode`
+- 文件在磁盘当中的存储是将属性和内容分开存储的
+
+## 6.1 磁盘
+
+定位一个扇区：面（定位该用哪个磁头） -> 磁道（柱面） -> 扇区   （CHS寻址方式）
+
+- 时间消耗主要来自于**寻道时间**
+
+## 6.2 对磁盘的抽象
+
+`LBA`地址：将磁盘磁头、磁道、扇区逻辑抽象成一个一维数组，通过除模运算计算出CHS
+
+![09B31BEA48DF0457251FF93A6F55B0A6](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/09B31BEA48DF0457251FF93A6F55B0A6.png)
+
+-  建立联系，
+
+  - 在Linux中，用于**标识文件**, **找到`inode`编号->`inode table` -> `struct inode` -> `blocks[]` -> 文件内容**
+
+  - ```cpp
+    struct inode {
+        inode number
+        //文件类型
+        //权限 : w/r/x
+        //引用计数
+        //拥有者
+        //所属组
+        //ACM时间
+        int blocks[N]    //
+    }
+    ```
+
+- `inode table`: 存放`inode`， 每个`inode`有唯一的编号（**一个文件一个inode， 一个inode可能对应多个block**）
+
+  - `ls -li`: 查看`inode`编号
+
+- `Block Bitmap`：位图，标记块是否被使用
+
+- `inode Bitmap`：位图，标记`inode`编号是否是有效的 
+
+- `Group Descriptor Table`：
+
+- `Super Block`：文件系统的基本信息，包含整个分区的基本使用情况
+  - 一共有多少个组、每个组的大小，每个组inode的数量、每个组的block数量、每个组的其实inode、文件系统的类型和名称
+
+# 7 如何理解目录
+
+- 目录是文件：内容 + 属性，也有inode
+
+- 目录也有数据块，存放目录下，文件的文件名和对应文件与inode的映射关系
+
+  - 因此同一目录下不能有相同文件名
+
+  - 若该目录没有`w`权限，无法创建文件：因为无法将文件名与inode写入该目录的数据块
+
+  - 若该目录没有`r`权限，无法查看该目录
+
+  - 若该目录没有`x`权限，无法进入该目录
+
+    
+
+- `dentry`缓存
+
+  - **如何知道自己的inode**？当前的目录的数据块中存放当前目录下文件名与inode的映射关系，而当前目录又被上级目录视为文件，存放该目录的inode与数据块，所以当访问一个文件的inode时需要递归到根目录再从根目录访问到当前inode
+
+
+# 8 软硬链接
+
+## 8.1 建立软连接
+
+`ln -s file.txt soft-link`
+
+![image-20231107214116494](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20231107214116494.png)
+
+- 软连接具有独立的`inode`，也有独立的数据块，它的数据块里面保存的是指向**文件的路径**（类似于快捷方式）
+
+## 8.2 建立硬链接
+
+`ln test.txt hard-link`
+
+![image-20231107214049062](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20231107214049062.png)
+
+- 硬链接具有相同的`inode`，本质上是在当前目录下，建立新的文件名字与`inode`链接（取别名/引用）
+- **不允许给目录建立硬链接**（除非是 `.` 和 `..`）,不然会造成查找路径的环路问题
+
+# 9 动/静态库
+
+![image-20240111231635430](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240111231635430.png)
+
+- 静态库：`libXXX.a`
+- 动态库：`libXXX.so`
+
+## 9.1 静态库
+
+- 静态库本质上时一些`.o`文件的集合
+- `ar`是gun归档工具, **用于打包静态库**，`rc`表示replace and create
+
+```makefile
+lib=libmymath.a
+
+$(lib):mymath.o     //可能有多个.o文件
+	ar -rc $@ $^
+mymath.o:mymath.c
+	gcc -c $^
+	
+.PHONY:
+clean:
+	rm -f *.a *.o
+	
+.PHONY:output
+output:
+	mkdir -p lib/include
+	mkdir -p lib/mymathlib
+	cp *.h lib/include
+	cp *.a lib/mymathlib
+	
+```
+
+使用库：
+
+1. 找到头文件路径 —— `-I`
+2. 找到库的路径（否则链接时报错）—— `-L`
+3. 并且说明链接该路径下的哪一个库 —— `-l`   (去掉`lib`，去掉`.a`，剩下的名字) ；**第三方库必须指定库名称**
+
+```bash
+gcc main.c -I ./lib/include/ -L ./lib/mymathlib/ -lmymath
+```
+
+- 查看可执行文件 所用的标准库（动态库）
+
+```bash
+ldd a.out
+```
+
+- 库的安装
+
+1. 拷贝到指定目录
+
+```bash
+sudo cp lib/include/math.h /usr/include/
+sudo cp lib/mymathlib/libmymath.a /lib64/ 
+```
+
+2. 建立软连接（不建议这么做）
+
+## 9.2 动态库
+
+1. 生成`.o`文件
+
+```bash
+gcc -fPIC -c mylob.c
+```
+
+(`-c` 不知名目标文件时，生成的时同名`.o`文件)
+
+2. 生成`.so`文件  
+
+```bash
+gcc -shared -o libmymethod *.o
+```
+
+(不加`-shared`生成的是可执行文件)
+
+- 当程序运行动态库中的方法，系统会将动态库加载到内存中执行，所以`.so`文件自动带有`x`可执行权限
+
+
+
+```makefile
+dy-lib=libmymethod.so
+static-lib=libmymath.a
+
+.PHONY:all
+all: $(dy-lib) $(static-lib)
+
+$(static-lib):mymath.o
+	ar -rc $@ $^
+mymath.o:mymath.c
+	gcc -c $^
+
+$(dy-lib):mylog.o myprint.o
+	gcc -shared -o $@ $^
+mylog.o:mylog.c
+	gcc -fPIC -c $^
+myprint.o:myprint.c
+	gcc -fPIC -c $^
+	
+.PHONY:clean
+clean:
+	rm -rf *.o *.a *.so mylib
+   
+.PHONY:output
+output:
+	mkdir -p mylib/include
+	mkdir -p mylib/lib
+	cp *.h mylib/include
+	cp *.a mylib/lib
+	cp *.so mylib/lib
+```
+
+- 编译时于静态库相同
+- **`-fPIC`：与地址无关码**
+
+### 9.2.1 如何让可执行程序找到动态库
+
+![IMG_2827](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/IMG_2827.PNG)
+
+四种方法：
+
+1. 将动态库拷贝到`/lib64`下
+2. 建立在`/lib64`下的软连接
+
+```bash
+ln -s xxx(绝对路径) /lib64/xxx
+```
+
+3. 添加到环境变量
+
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/xxx/xxxx/xx(绝对路径)
+```
+
+4. - `cd /etc/ld.so.conf.d`
+   - 创建一个`.conf`文件
+   - 将动态库路径添加到该文件中
+   - 执行`ldconfig`
+
+
+
+### 9.2.2 动态库时怎么被加载的
+
+- **动态库在系统中加载后，会被所有进程共享**
+- 共享库中的全局变量，既然会被共享，那么会不会冲突？ 不会，因为会发生**写时拷贝**
+- 程序在编译好之后，内部有地址，及就是**虚拟地址**，编译器也要考虑程序内存加载的问题
+
+- 共享库肯能非常大，所以使用固定位置是不现实的，库可以在虚拟内存的共享区中任意位置加载， 动态库内部的函数不采用绝对编址，只需要表示每个函数在库中的偏移量即可， 通过库的起始地址 + 偏移量找到函数
+  - 所以编译形成动态库的链接文件（`.o`）时，需要带选项`-fPIC`：（position independent code）
