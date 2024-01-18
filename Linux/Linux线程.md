@@ -4,6 +4,49 @@
 
 # 1 概念
 
+- 可重入和不可重入：
+
+> 在C++中，"可重入"（reentrant）和"不可重入"（non-reentrant）是描述函数在多线程环境中的行为的术语。
+>
+> 1. **可重入（Reentrant）**：
+>    - 可重入函数是指一个函数可以同时被多个线程调用，而不会导致数据冲突或不一致性。
+>    - 这通常通过确保函数内部使用的所有数据都是局部的、或者通过互斥锁来保护共享数据来实现。因此，可重入函数可以安全地在多线程环境中使用。
+> 2. **不可重入（Non-reentrant）**：
+>    - 不可重入函数是指在被调用时使用了全局数据，而且在多线程环境下可能会导致数据竞争或其他问题。
+>    - 如果在多线程环境中使用不可重入函数，可能需要使用互斥锁等手段来确保函数的安全性。
+>
+> **为什么重入性很重要？** 在多线程应用程序中，如果有多个线程同时调用某个函数，而且该函数使用了共享数据，那么可能会出现竞争条件，导致数据不一致性、程序崩溃等问题。可重入函数的设计能够避免这些问题，提高程序的稳定性和可靠性。
+>
+> **示例：**
+>
+> ```cpp
+> cppCopy code// 可重入函数的例子
+> #include <iostream>
+> #include <mutex>
+> 
+> std::mutex myMutex;
+> 
+> int reentrantFunction(int x) {
+>     std::lock_guard<std::mutex> lock(myMutex);  // 使用互斥锁保护共享资源
+>     return x * x;
+> }
+> 
+> // 不可重入函数的例子
+> int nonReentrantFunction(int x) {
+>     static int sharedData = 0;  // 使用了静态变量，可能导致竞争条件
+> 
+>     // 在多线程环境下，可能导致 sharedData 数据竞争
+>     sharedData += x;
+> 
+>     return sharedData;
+> }
+> 
+> int main() {
+>     // 在实际应用中，请根据具体情况使用可重入或不可重入函数
+>     return 0;
+> }
+> ```
+
 ## 1.1 进程与线程的区别
 
 1. 线程是CPU调度的基本单位
@@ -54,7 +97,7 @@
 ![image-20231203231834059](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20231203231834059.png)
 
 1. 参数一：输出型参数，thread_id
-2. 参数二：线程属性
+2. 参数二：线程属性，一般为`nullptr`
 3. 参数三：函数指针，给出线程执行的函数：返回值和参数均为`void*`
 4. 参数四：创建线程成功，传给线程启动函数的参数
 5. 返回值：0表示成功，非零表示错误码
@@ -190,7 +233,134 @@ int main()
 
 ![image-20231205204702737](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20231205204702737.png)
 
-# 3 C++线程库
+# 3 C++并发支持库
+
+> 参考：
+>
+> 1. https://paul.pub/cpp-concurrency/
+> 2. https://en.cppreference.com/w/cpp/thread
+
+## 3.1 线程相关
+
+![image-20240118202712108](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240118202712108.png)
+
+## 3.2 锁 : `mutex`/`lock`
+
+### 3.2.1 mutex
+
+
+
+
+
+### 3.2.2 lock & 封装lock的RAII类
+
+- lock: 同时申请锁，其中一个申请不到则阻塞，避免deadlock
+
+![](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240118225006871.png)
+
+![](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240118215838439.png)
+
+- 使用RAII的类：`lock_guard`, `uniqur_lock`, `shared_lock`, `scoped_lock`
+
+![image-20240118220404402](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240118220404402.png)
+
+```cpp
+#include <chrono>
+#include <functional>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
+using namespace std::chrono_literals;
+ 
+struct Employee
+{
+    std::vector<std::string> lunch_partners;
+    std::string id;
+    std::mutex m;
+    Employee(std::string id) : id(id) {}
+    std::string partners() const
+    {
+        std::string ret = "Employee " + id + " has lunch partners: ";
+        for (int count{}; const auto& partner : lunch_partners)
+            ret += (count++ ? ", " : "") + partner;
+        return ret;
+    }
+};
+ 
+void send_mail(Employee&, Employee&)
+{
+    // Simulate a time-consuming messaging operation
+    std::this_thread::sleep_for(1s);
+}
+ 
+void assign_lunch_partner(Employee& e1, Employee& e2)
+{
+    static std::mutex io_mutex;
+    {
+        std::lock_guard<std::mutex> lk(io_mutex);
+        std::cout << e1.id << " and " << e2.id << " are waiting for locks" << std::endl;
+    }
+ 
+    {
+        // Use std::scoped_lock to acquire two locks without worrying about
+        // other calls to assign_lunch_partner deadlocking us
+        // and it also provides a convenient RAII-style mechanism
+ 
+        std::scoped_lock lock(e1.m, e2.m);
+ 
+        // Equivalent code 1 (using std::lock and std::lock_guard)
+        // std::lock(e1.m, e2.m);
+        // std::lock_guard<std::mutex> lk1(e1.m, std::adopt_lock);
+        // std::lock_guard<std::mutex> lk2(e2.m, std::adopt_lock);
+ 
+        // Equivalent code 2 (if unique_locks are needed, e.g. for condition variables)
+        // std::unique_lock<std::mutex> lk1(e1.m, std::defer_lock);
+        // std::unique_lock<std::mutex> lk2(e2.m, std::defer_lock);
+        // std::lock(lk1, lk2);
+        {
+            std::lock_guard<std::mutex> lk(io_mutex);
+            std::cout << e1.id << " and " << e2.id << " got locks" << std::endl;
+        }
+        e1.lunch_partners.push_back(e2.id);
+        e2.lunch_partners.push_back(e1.id);
+    }
+ 
+    send_mail(e1, e2);
+    send_mail(e2, e1);
+}
+ 
+int main()
+{
+    Employee alice("Alice"), bob("Bob"), christina("Christina"), dave("Dave");
+ 
+    // Assign in parallel threads because mailing users about lunch assignments
+    // takes a long time
+    std::vector<std::thread> threads;
+    threads.emplace_back(assign_lunch_partner, std::ref(alice), std::ref(bob));
+    threads.emplace_back(assign_lunch_partner, std::ref(christina), std::ref(bob));
+    threads.emplace_back(assign_lunch_partner, std::ref(christina), std::ref(alice));
+    threads.emplace_back(assign_lunch_partner, std::ref(dave), std::ref(bob));
+ 
+    for (auto& thread : threads)
+        thread.join();
+    std::cout << alice.partners() << '\n'  << bob.partners() << '\n'
+              << christina.partners() << '\n' << dave.partners() << '\n';
+}
+```
+
+### 3.2.3 Call once
+
+![image-20240118233738777](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240118233738777.png)
+
+## 3.3 条件变量
+
+
+
+
+
+
 
 
 
@@ -330,7 +500,7 @@ int main() {
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 ```
 
-### 5.2.2 对**临界资源**加锁
+### 5.2.2 对临界资源加锁
 
 ![image-20231207112130106](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20231207112130106.png)
 
@@ -403,9 +573,12 @@ int main()
 3. 不可抢占
 4. 循环等待
 
-### 5.4.2 解决死锁
-
-`pthread_mutex_trylock`等...破环上述第二点或者第三点条件
+> - 死锁预防
+> - 死锁避免 
+>   - 进程启动拒绝
+>   - 资源分配拒绝 —— 银行家算法（安全/不安全状态） —— P171
+> - 死锁检测
+> - **哲学家就餐问题**
 
 # 6 线程同步
 
@@ -555,12 +728,14 @@ private:
 - 本质是一个计数器，描述临界资源中资源数量的多少，保证其`PV`操作时原子的 
 
 ```cpp
-P() //+
+P() //-
 //访问资源
-V() //-
+V() //+
 ```
 
-## 7.1 初始化信号量
+## 7.1 基本操作
+
+### 7.1.1初始化信号量
 
 ![image-20240116103417518](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116103417518.png)
 
@@ -569,34 +744,86 @@ V() //-
   - `pshared`: 0表示线程间共享，非0表示进程间共享
   - `value`：信号量的初始值
 
-## 7.2 PV操作
+### 7.1.2 销毁
+
+```cpp 
+int sem_destroy(sem_t *sem);
+```
+
+### 7.1.3 PV操作
 
 ```cpp
-//P() 
+//P() -> --
 int set_wait(sem_t *sem);
-//V()
+//V() -> ++
 int set_post(sem_t *sem);
 
 ```
 
-## 7.3 基于信号量的环形生产者-消费者问题
+## 7.2 基于信号量的环形生产者-消费者问题
 
 ```cpp
 /* SapceSem表示剩余空间，初始值为n
-   DateSem表示剩余生产出的资源，初始值为0   
-*/
-//生产者:
-{
-	P(SpaceSem);
-	//生产
-	V(DateSem);
-}
-
+   DateSem表示剩余生产
 //消费者：
 {
     P(DateSem);
     //消费
     V(SpaceSem)
 }
+*/
+#include <semaphore.h>
+#include <vector>
+using namespace std;
+
+template<typename T>
+class circular_queue {
+public:
+    circular_queue(int capacity = 5) : capacity_(capacity), pos_p(0), pos_c(0) {
+        sem_init(&remain, 0, capacity_);   //剩余空间的信号量初始值为总容量
+        sem_init(&ouput, 0, 0);
+        pthread_mutex_init(&mutex_p, nullptr);
+        pthread_mutex_init(&mutex_c, nullptr);
+    }
+    void push(T d) {
+        P(&remain);     //对剩余空间的信号量--，当remain为0时，表示没有剩余空间，阻塞在当前位置，等待消费
+
+        lock(&mutex_p);     //考虑多个线程生产数据，保证原子性
+        v[pos_p] = d;
+        pos_p = (pos_p + 1) % capacity_;
+        unlock(&mutex_p); 
+
+        V(&ouput);      //对生产数据的信号量++
+    }   
+    T& pop() {
+        P(&ouput);      //对生产量的信号量--，当ouput为0时，表示没有剩余产品，阻塞在当前位置，等待生产
+
+        lock(&mutex_c);
+        T& ret = v[pos_c];
+        pos_c = (pos_c + 1) % capacity_;
+        unlock(&mutex_c);
+
+        V(&remain);
+        return ret;
+    }
+    ~circular_queue() {
+        sem_destroy(&remain);
+        sem_destroy(&ouput);
+        pthread_mutex_destroy(&mutex_c);
+        pthread_mutex_destroy(&mutex_p);
+    }
+private:
+    void P(sem_t* sem) { sem_wait(sem); }
+    void V(sem_t* sem)  {sem_post(sem); }
+    void lock(pthread_mutex_t* mutex) { pthread_mutex_lock(mutex); }
+    void unlock(pthread_mutex_t* mutex) { pthread_mutex_unlock(mutex); }
+
+private:
+    int pos_p,pos_c;    //生产消费的位置
+    vector<T> cir_queue;
+    sem_t remain, ouput;    //信号量，remian:队列剩余空间， output:生产的数据量
+    pthread_mutex_t mutex_p, mutex_c;   
+    int capacity_;
+}; 
 ```
 

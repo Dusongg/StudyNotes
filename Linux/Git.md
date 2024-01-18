@@ -1,4 +1,7 @@
 # Git基本操作
+
+![image-20240116131105362](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116131105362.png)
+
 ### 1 初始化:
 `git init`
 ### 2 配置
@@ -66,7 +69,7 @@
 - ` *[文件后缀] `      表示忽略此类文件   例如： *.jpg  
 - ` ![文件名] `         表示不排除该文件   例如：!name.jpg
 - `git check-ignore -v [文件名]`   查看该文件被忽略的原因，以及在ignore文件中的位置
- 
+
 ### 配置命令别名
 ` git config --global alias.[别名] ‘[命令名]’ `
 
@@ -123,3 +126,17 @@ branch2先合并到master，若之后branch1再想合并到master分支，可能
 - `git remote prune origin`:修剪远程已被删除的分支
 
 # 企业级开发流程
+
+
+
+
+
+# pr
+
+1. fork
+2. clone到本地
+3. 在本地编写
+4. `add`  `commit`   `push origin main`
+5. Comtribute:open a pull request: create pull requset
+
+![image-20240116141800612](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116141800612.png)

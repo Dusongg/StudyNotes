@@ -217,6 +217,14 @@ CREATE TABLE [if not exists] table_name (
 
 ![image-20240112164028571](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240112164028571.png)
 
+### 4.1.1 复制表
+
+```mysql
+create table [new_table] like [old_table]; 
+```
+
+
+
 ## 4.2 查看表
 
 ```mysql
@@ -240,13 +248,14 @@ show create table [表名] \G
 - 改表名
 
 ```mysql
-alter table [表名] rename to [新表名] 
+alter table [表名] rename to [新表名] ;   #或者下面一种
+rename table [] to [];  
 ```
 
 - 改表中某一列的名字
 
 ```mysql
-alter table [表名] change [old_name] [new_name] [属性]
+alter table [表名] change [old_name] [new_name] [属性];
 ```
 
 ![image-20240112174008991](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240112174008991.png)
@@ -483,3 +492,231 @@ alter table [table_name] add primary key([某一字段名])
 - 复合主键（当多个字段值**均相同**时才报错）
 
 ![image-20240113232251799](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240113232251799.png)
+
+## 6.6 auto_increment
+
+- 自增长，每次插入后加一
+- 一张表最多只能有一个自增长，必须配合主键使用
+
+```mysql
+create table [table_name] (
+	  id int primary key auto_increment,
+    #...
+) AUTO_INCREMENT=1000;  #默认为1
+```
+
+- 获取上一次auto_increment的值
+
+```mysql
+select last_insert_id();
+```
+
+
+
+## 6.7 唯一键 —— `unique key` 
+
+```mysql
+create table [table_name] (
+    id int unique key,
+    #...
+);
+```
+
+### 6.7.1 与主键的区别
+
+- 唯一键可以为NULL，且可以多个为空 
+- 主键更多是标识唯一性；唯一键更多是保证不重复(配合primary key使用，保证主键之外的唯一性)
+
+## 6.8 外键 —— `references`
+
+- 外键约束主要定义在从表上，主表必须有主键或唯一键约束，定义外键后，要求外键列数据必须在主表的主键列存在或者为NULL
+
+- 约束主表(master_table)与从表(slave_table)的关系
+  - 例如主表为班级，从表为学生，通过外键将从表的某一列与主表建立联系
+
+```mysql
+ foreign key([从表的某一列]) references [主表名]([主表某一列])
+```
+
+![image-20240116173610607](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116173610607.png)
+
+
+
+# 7 Mysql基本查询
+
+## 7.1 `insert` —— 增
+
+### 7.1.1 一次插入多行
+
+```mysql
+insert into [table_name] values(/*...*/), (/*...*/), (/*...*/);
+```
+
+ 
+
+### 7.1.2 主键/唯一键冲突后修正
+
+```mysql
+#若存在冲突，则更新
+#若没有冲突，则插入values括号内的值
+insert into [table_name] values() on duplicate key update []=[], []=[];
+```
+
+![ ](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116184949280.png)      
+
+3. `replace`
+
+```mysql
+#如果有冲突，删除之前的，新增一条
+replace into [table_name] () values ();
+```
+
+## 7.2 `select` —— 查
+
+### 7.2.1**基本查询**
+
+```mysql
+#全列查询
+select * from [table_name];
+#选列查询
+select [/*可以写表达式， 通过as重命名列*/] from [table_name];   
+```
+
+![image-20240116201554077](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116201554077.png)![image-20240116201642756](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116201642756.png)
+
+ 
+
+### 7.2.2 `distinct` 查询去重 
+
+```mysql
+select distinct [列名] from [table_name]
+```
+
+### 7.2.3 `where`条件
+
+- 比较运算符
+
+| 运算符            | 说明                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| >, >=, <, <=      | 大于，大于等于，小于，小于等于                               |
+| =                 | 等于，NULL 不安全，例如 NULL = NULL 的结果是 NULL            |
+| <=>               | 等于，NULL 安全，例如 NULL <=> NULL 的结果是 TRUE(1)         |
+| !=, <>            | 不等于                                                       |
+| BETWEEN a0 AND a1 | 范围匹配，[a0, a1]，如果 a0 <= value <= a1，返回 TRUE(1)     |
+| IN (option, ...)  | 如果是 option 中的任意一个，返回 TRUE(1)                     |
+| IS NULL           | 是 NULL                                                      |
+| IS NOT NULL       | 不是 NULL                                                    |
+| LIKE / not like   | 模糊匹配。% 表示任意多个（包括 0 个）任意字符；_ 表示任意一个字符 |
+
+![image-20240116222650952](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116222650952.png)
+
+- 逻辑运算符
+  - 可以用括号将多个逻辑条件分组
+
+| 运算符 | 说明                                       |
+| ------ | ------------------------------------------ |
+| AND    | 多个条件必须都为 TRUE(1)，结果才是 TRUE(1) |
+| OR     | 任意一个条件为 TRUE(1), 结果为 TRUE(1)     |
+| NOT    | 条件为 TRUE(1)，结果为 FALSE(0)            |
+
+
+
+### 7.2.4 `order by`子句
+
+- NULL表示最小值
+- 默认升序
+- 执行顺序是先筛选数据，最后排序
+
+ ```mysql
+ select [] from [table_name] order by [column_name1] [asc/desc], [column_name2] [asc/desc], ...
+ #多个排序，当第一个相同时，再通过第二个排...
+ ```
+
+
+
+### 7.2.5 筛选分页结果 —— `limit` 
+
+```mysql
+#筛选前n条
+select [] from [table_name] where ... limit n;   #[0,n)  ,表的每一行数据下标从0开始
+#筛选第s到n条
+select [] from [table_name] where ... limit s, n;     	  #[s, n)
+select [] from [table_name] where ... limit n offset s;   #[s, n)
+```
+
+![image-20240117133040344](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240117133040344.png)
+
+## 7.3 `update` —— 改
+
+- 对查询到的结果进行列值更新
+
+```mysql
+update [table_name] set [column_name]=[expr] [where ...] ...;
+```
+
+![image-20240117132721923](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240117132721923.png)
+
+## 7.4 `delete` —— 删
+
+```mysql
+delete from [table_name];  #删除表内所有数据
+delete from [table_name] where [column_name]=[expr]...;   #删除指定数据
+
+delete from [table_name] order by [column] asc limit n;   #删除表内排序后的前n行数据
+
+```
+
+
+
+### 7.4.1 截断表
+
+- 清空后会重置`auto_increment`项
+- 速度比delete快，因为它不走事务，不记录日志
+
+```mysql
+truncate table_name;     #与delete from [table_name]类似，都是清空表的数据
+```
+
+
+
+## 7.5 插入查询操作
+
+```mysql
+insert into [table_name] select [column] from [table_name] ...;
+```
+
+
+
+![](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240117171357303.png)
+
+
+
+# 7.7 聚合函数
+
+- `count`
+- `sum`
+- `avg` 
+- `max` / `min`
+
+## 7.8 `group by` 分组查询 
+
+- 分组之后便于聚合统计
+- group by 按照后一列的值进行分组，分成不同行
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240117175209396.png" alt="image-20240117175209396" style="zoom: 50%;" />
+
+### 7.8.1 `having`
+
+- 对分组聚合统计之后的数据进行筛选（类似于`where`）
+
+```mysql
+#显示平均工资低于2000的部门及它的平均工资 
+select department_no, avg(salary) department_avg_salary from employee group by having department_avg_salary<2000; 
+```
+
+- having于where的区别？执行顺序？ 
+  - where对任意列进行筛选，having对聚合之后的结果进行筛选
+  - where先，having在group by之后
+
+
+
