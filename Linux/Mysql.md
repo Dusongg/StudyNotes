@@ -573,7 +573,7 @@ replace into [table_name] () values ();
 
 ## 7.2 `select` —— 查
 
-### 7.2.1**基本查询**
+### 7.2.1基本查询
 
 ```mysql
 #全列查询
@@ -596,17 +596,17 @@ select distinct [列名] from [table_name]
 
 - 比较运算符
 
-| 运算符            | 说明                                                         |
-| ----------------- | ------------------------------------------------------------ |
-| >, >=, <, <=      | 大于，大于等于，小于，小于等于                               |
-| =                 | 等于，NULL 不安全，例如 NULL = NULL 的结果是 NULL            |
-| <=>               | 等于，NULL 安全，例如 NULL <=> NULL 的结果是 TRUE(1)         |
-| !=, <>            | 不等于                                                       |
-| BETWEEN a0 AND a1 | 范围匹配，[a0, a1]，如果 a0 <= value <= a1，返回 TRUE(1)     |
-| IN (option, ...)  | 如果是 option 中的任意一个，返回 TRUE(1)                     |
-| IS NULL           | 是 NULL                                                      |
-| IS NOT NULL       | 不是 NULL                                                    |
-| LIKE / not like   | 模糊匹配。% 表示任意多个（包括 0 个）任意字符；_ 表示任意一个字符 |
+| 运算符              | 说明                                                         |
+| ------------------- | ------------------------------------------------------------ |
+| >, >=, <, <=        | 大于，大于等于，小于，小于等于                               |
+| =                   | 等于，NULL 不安全，例如 NULL = NULL 的结果是 NULL            |
+| <=>                 | 等于，NULL 安全，例如 NULL <=> NULL 的结果是 TRUE(1)         |
+| !=, <>              | 不等于                                                       |
+| `BETWEEN a0 AND a1` | 范围匹配，[a0, a1]，如果 a0 <= value <= a1，返回 TRUE(1)     |
+| IN (option, ...)    | 如果是 option 中的任意一个，返回 TRUE(1)                     |
+| IS NULL             | 是 NULL                                                      |
+| IS NOT NULL         | 不是 NULL                                                    |
+| LIKE / not like     | 模糊匹配。% 表示任意多个（包括 0 个）任意字符；_ 表示任意一个字符 |
 
 ![image-20240116222650952](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116222650952.png)
 
@@ -711,7 +711,7 @@ insert into [table_name] select [column] from [table_name] ...;
 
 ```mysql
 #显示平均工资低于2000的部门及它的平均工资 
-select department_no, avg(salary) department_avg_salary from employee group by having department_avg_salary<2000; 
+select department_no, avg(salary) department_avg_salary from employee group by department_no having department_avg_salary<2000; 
 ```
 
 - having于where的区别？执行顺序？ 
@@ -719,4 +719,170 @@ select department_no, avg(salary) department_avg_salary from employee group by h
   - where先，having在group by之后
 
 
+
+# 8 复合查询
+
+## 8.1 多表查询
+
+以下两张表为例
+
+![image-20240119165147722](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240119165147722.png)
+
+### 8.1.1 合并两张表
+
+```mysql
+#通过deptno相同合并两张表
+select * from emp, dept where emp.deptno=dept.deptno;
+```
+
+## 8.2 自链接
+
+ ```mysql
+ #默认自链接方式
+ select * from emp as t1, emp as t1;
+ ```
+
+
+
+```mysql
+# 查找员工FORM的领导的名字和编号
+# 1. 通过子查询
+select ename, empno from emp where empno=(select mgr from emp where enmae='FORM');
+
+# 2. 通过自链接表
+select e2.ename, e2.empno from emp e1, emp e2 where e1.ename='FORM' and e1.mgr=e2.empno;
+```
+
+
+
+## 8.3 子查询
+
+```mysql
+select [] from [] where ()(select [] from [] where ...);
+```
+
+
+
+### 8.3.1 单行子查询
+
+```mysql
+# 显示SMITH同一部门的员工
+select * from emp where deptno=(select deptno from emp where ename='SMITH');
+```
+
+### 8.3.2 多行子查询
+
+**三个关键字：**
+
+1. `in`：筛选在一个集合中的列
+
+```mysql
+# 查询与10号部门的工作岗位相同的员工的名字、岗位、工资、部门号，但是不包含10好部门自己的
+select enmae, job, sal, deptno from emp where job in (select distinct job from emp where deptno=10) and deptno<>10;
+```
+
+2. `all`：所有
+
+```mysql
+# 显示工资比30号部门的所有员工的工资高的员工的名字、工资、部门号
+select ename, sal, deptno from emp where sal > all (select distinct sal from emp where deptno=30);
+```
+
+3. `any`：任意
+
+```mysql
+# 显示工资比30号部门的任意一个员工的工资高的员工的名字、工资、部门号
+select ename, sal, deptno from emp where sal > any (select distinct sal from emp where deptno=30);
+```
+
+
+
+### 8.3.3 多列子查询
+
+```mysql
+# 与员工SMITH的部门和工作相同的其他员工的数据
+select * from emp where (deptno, job)=(select deptno, job from emp where enmae='SMITH');
+```
+
+
+
+### 8.3.4 在`from`子句中使用子查询
+
+**上述子查询在where语句之后，充当判断条件；以下子查询出现在from子句中，将查询结果作为一张新的表**
+
+```mysql
+# 显示每个高于自己部门平均工资的员工的信息
+select * from emp, (select deptno, avg(sal) avg_sal  from emp group by deptno) as tmp where emp.deptno=tmp.deptno and emp.sal>tmp.avg_sal;
+
+# 显示每个部门的信息和人员数量
+select * from dept t1, (select deptno, count(*) dept_num from emp group by deptno) t2 where t1.deptno=t2.deptno;
+```
+
+
+
+## 8.4 合并查询
+
+-  `union`：求两个表的并集
+- `union all`：直接拼接两个表
+
+
+
+# 9 内置函数
+
+## 9.1 日期函数
+
+![image-20240119150423284](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240119150423284.png)
+
+```mysql
+ #查看当前时间
+select current_time();   
+
+#想表中插入时间数据 (birthday 类型为date)
+insert into [] (birthday) value (date(current_date()));   
+
+#统计两分钟以内插入的数据
+select content msg_time from [] where msg_time > date_sub(now(), interval 2 minute);
+
+```
+
+## 9.2 字符串函数
+
+| `charset(str)`                          | 查看字符串字符集                                   |
+| --------------------------------------- | -------------------------------------------------- |
+| `concat(str, [])`                       | 链接                                               |
+| `instr(str, substr)`                    | 查找返回下标，没有则返回0                          |
+| `ucase()` , `lcase`                     | 转大写，转小写                                     |
+| `left(str, length)`                     | 取`str`左边起长度为length的子串                    |
+| `length(str)`                           | 求`str`的长度， 字节长度， 一个汉字utf-8占三个字节 |
+| `replace(str, search_str, replace_str)` | 将`str`中的`search_str`替换成`repalce_str`         |
+| `strcmp(str1, str2)`                    | 比较两字符串                                       |
+| `substring(str, position, length)`      | 取`str[positon, posiron + length]`                 |
+| `ltrim(str)`, `rtrim(str)`，`trim(str)` | 去除字符串左侧/右侧/两侧空格                       |
+
+```mysql
+#用concat链接多列信息
+select concat('姓名: ', name, '总分：', chinese + english, '语文成绩： '， chinese, '英语成绩', english) msg from exam_score;
+```
+
+ ## 9.3 数学函数
+
+| `abs()`                            |                          |
+| ---------------------------------- | ------------------------ |
+| `bin(), hex()`                     | 十进制转二进制/十六进制  |
+| `conv(number, from_base, to_base)` | 将任意数进行进制转换     |
+| `ceiling(), floor()`               | 上取整/下取整            |
+| `rand()`                           | 返回随机浮点数[0.0, 1.0] |
+| `mod(number, denominator)`         | 取模求余                 |
+| `format(number, n)`                | 对浮点数保留n位小数      |
+
+
+
+##  9.4 其他函数
+
+| `user()`       | 查询当前用户                                |
+| -------------- | ------------------------------------------- |
+| `md5()`        | 将一个字符串进行MD5摘要，得到一个32位字符串 |
+| `database()`   | 查询当前使用的数据库                        |
+| `password()`   | mysql内置的加密函数                         |
+| `ifnull(x, y)` | `if x ? x : y`                              |
 

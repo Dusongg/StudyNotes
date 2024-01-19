@@ -248,7 +248,7 @@ int main()
 
 ### 3.2.1 mutex
 
-
+![image-20240119213118361](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240119213118361.png)
 
 
 
@@ -263,6 +263,10 @@ int main()
 - 使用RAII的类：`lock_guard`, `uniqur_lock`, `shared_lock`, `scoped_lock`
 
 ![image-20240118220404402](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240118220404402.png)
+
+- **在C++17之后删除了类似于`unique_lock<mutex>`的模板类型，改为直接的`unique_lock`类型**
+
+![](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240119223241861.png)
 
 ```cpp
 #include <chrono>
@@ -358,9 +362,92 @@ int main()
 
 
 
+![image-20240119213920600](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240119213920600.png)
 
+### 3.3.1`condition_variable`的方法
 
+![image-20240119222028467](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240119222028467.png)
 
+- `wait`原理与用法
+
+`wait`阻塞当前进程， 直到`notify_all`或`notify_one()`，之后循环判断直到满足谓词`bool(stop_wating()) == true`，
+
+详细例子可以看下面的代码
+
+![image-20240119232925584](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240119232925584.png)
+
+- `native_handle`：返回本机句柄，用法如下：
+
+```cpp
+/*以下伪代码用于展示native_handle的用法*/
+std::mutex m;
+std::condition_variable cv;   
+
+// cv.wait(lk, []{ return ready; });
+    while (!ready) {
+        pthread_cond_wait(cv.native_handle(), m.native_handle());
+    }
+```
+
+- 条件变量与锁使用，实现同步互斥
+
+```cpp
+
+#include <condition_variable>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <thread>
+
+std::mutex m;
+std::condition_variable cv;
+std::string data_;
+bool ready = false;
+bool processed = false;
+
+void worker_thread()
+{
+    // Wait until main() sends data
+    std::unique_lock lk(m);
+    cv.wait(lk, [] { return ready; });
+
+    // after the wait, we own the lock.
+    std::cout << "Worker thread is processing data\n";
+    data_ += " after processing";
+
+    // Send data back to main()
+    processed = true;
+    std::cout << "Worker thread signals data processing completed\n";
+
+    // Manual unlocking is done before notifying, to avoid waking up
+    // the waiting thread only to block again (see notify_one for details)
+    lk.unlock();
+    cv.notify_one();
+}
+
+int main()
+{
+    std::thread worker(worker_thread);
+
+    data_ = "Example data";
+    // send data to the worker thread
+    {
+        std::lock_guard lk(m);
+        ready = true;
+        std::cout << "main() signals data ready for processing\n";
+    }
+    cv.notify_one();
+
+    // wait for the worker
+    {
+        std::unique_lock lk(m);
+        cv.wait(lk, [] { return processed; });
+    }
+    std::cout << "Back in main(), data = " << data_ << '\n';
+
+    worker.join();
+}
+```
 
 
 
@@ -825,5 +912,181 @@ private:
     pthread_mutex_t mutex_p, mutex_c;   
     int capacity_;
 }; 
+```
+
+
+
+# 8 线程安全的单例模式
+
+ ## 8.1 饿汉模式实现单例
+
+```cpp
+template <typename T>
+class Singleton {
+    static T data;
+public:
+    static T* GetInstance() {
+        return &data;
+    }
+};
+```
+
+## 8.2 懒汉模式实现单例
+
+```cpp
+template <typename T>
+class Singleton {
+    static T* data;
+public:
+    static T* GetInstance {
+  		if (data == nullptr) { 		//线程不安全 
+            data = new T();    
+        }      
+        return data;
+    }
+};
+```
+
+## 8.3 单例模式的线程池
+
+```cpp
+#pragma once
+
+#include <iostream>
+#include <vector>
+#include <string>
+#include <queue>
+#include <pthread.h>
+#include <unistd.h>
+
+struct ThreadInfo
+{
+    pthread_t tid;
+    std::string name;
+};
+
+static const int defalutnum = 5;
+
+template <class T>
+class ThreadPool
+{
+public:
+    void Lock()
+    {
+        pthread_mutex_lock(&mutex_);
+    }
+    void Unlock()
+    {
+        pthread_mutex_unlock(&mutex_);
+    }
+    void Wakeup()
+    {
+        pthread_cond_signal(&cond_);
+    }
+    void ThreadSleep()
+    {
+        pthread_cond_wait(&cond_, &mutex_);
+    }
+    bool IsQueueEmpty()
+    {
+        return tasks_.empty();
+    }
+    std::string GetThreadName(pthread_t tid)
+    {
+        for (const auto &ti : threads_)
+        {
+            if (ti.tid == tid)
+                return ti.name;
+        }
+        return "None";
+    }
+
+public:
+    static void *HandlerTask(void *args)
+    {
+        ThreadPool<T> *tp = static_cast<ThreadPool<T> *>(args);
+        std::string name = tp->GetThreadName(pthread_self());
+        while (true)
+        {
+            tp->Lock();
+
+            while (tp->IsQueueEmpty())
+            {
+                tp->ThreadSleep();
+            }
+            T t = tp->Pop();
+            tp->Unlock();
+
+            t();
+            std::cout << name << " run, " << "result: " << t.GetResult() << std::endl;
+        }
+    }
+    void Start()
+    {
+        int num = threads_.size();
+        for (int i = 0; i < num; i++)
+        {
+            threads_[i].name = "thread-" + std::to_string(i + 1);
+            pthread_create(&(threads_[i].tid), nullptr, HandlerTask, this);
+        }
+    }
+    T Pop()
+    {
+        T t = tasks_.front();
+        tasks_.pop();
+        return t;
+    }
+    void Push(const T &t)    // 
+    {
+        Lock();
+        tasks_.push(t);
+        Wakeup();
+        Unlock();
+    }
+    static ThreadPool<T> *GetInstance()     //获得线程池对象
+    {
+        if (nullptr == tp_) //创建对象完之后，避免加锁解锁使效率降低
+        {
+            pthread_mutex_lock(&lock_);   //保证线程安全
+            if (nullptr == tp_)
+            {
+                std::cout << "log: singleton create done first!" << std::endl;
+                tp_ = new ThreadPool<T>();
+            }
+            pthread_mutex_unlock(&lock_); 
+        }
+
+        return tp_;
+    }
+
+private:
+    ThreadPool(int num = defalutnum) : threads_(num)
+    {
+        pthread_mutex_init(&mutex_, nullptr);
+        pthread_cond_init(&cond_, nullptr);
+    }
+    ~ThreadPool()
+    {
+        pthread_mutex_destroy(&mutex_);
+        pthread_cond_destroy(&cond_);
+    }
+    ThreadPool(const ThreadPool<T> &) = delete;
+    const ThreadPool<T> &operator=(const ThreadPool<T> &) = delete; 
+private:
+    std::vector<ThreadInfo> threads_;
+    std::queue<T> tasks_;
+
+    pthread_mutex_t mutex_;
+    pthread_cond_t cond_;
+
+    static ThreadPool<T> *tp_;
+    static pthread_mutex_t lock_;
+};
+
+template <class T>
+ThreadPool<T> *ThreadPool<T>::tp_ = nullptr;
+
+template <class T>
+pthread_mutex_t ThreadPool<T>::lock_ = PTHREAD_MUTEX_INITIALIZER;    //给创建线程池对象上锁
 ```
 
