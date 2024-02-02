@@ -728,7 +728,7 @@ select department_no, avg(salary) department_avg_salary from employee group by d
 
 ![image-20240119165147722](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240119165147722.png)
 
-### 8.1.1 合并两张表
+### 8.1.1 合并两张表（内连接）
 
 ```mysql
 #通过deptno相同合并两张表
@@ -886,3 +886,165 @@ select concat('姓名: ', name, '总分：', chinese + english, '语文成绩：
 | `password()`   | mysql内置的加密函数                         |
 | `ifnull(x, y)` | `if x ? x : y`                              |
 
+
+
+# 10 表的内外链接
+
+## 10.1 内连接
+
+```mysql
+select 字段 from table1 inner join table2 on 连接条件 and 其他条件;
+```
+
+
+
+```mysql
+# 显示SMITH的名字和部门名称
+# 之前合并表的写法
+select ename, dname from emp, dept where emp.deptno=dept.deptno and ename='SMITH';
+
+#标准的内连接写法
+select ename, dname from emp inner join dept on emp.deptno=dept.deptno and ename='SIMTH';
+```
+
+
+
+## 10.2 外连接
+
+### 10.2.1 左外连接
+
+- 链接两张表，左侧表完全显示称为左外连接
+
+```mysql
+select 字段 from table1 left join table2 on 链接条件; 
+```
+
+![image-20240121172034992](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240121172034992.png)
+
+### 10.2.2 右外连接
+
+```mysql
+select 字段 from table1 right join table2 on 连接条件;
+```
+
+
+
+# 11 索引
+
+##  11.1 存储
+
+- 在linux中，表结构在磁盘中就是文件 ，找到文件就是定位到对应的扇区（磁头->柱面->扇区）
+- Mysql进行IO的基本单位为16KB（page）
+- 页目录
+-  B+树：叶子节点保留数据，非叶子节点不要数 据，只保存目录项，叶子节点全部用双向链表连起来
+
+
+
+## 11.2 聚簇索引和非聚簇索引
+
+- `innoDB`和`MyISAM`都采用B+树
+
+- `MyISAM`最大的特点是将索引page和数据page分离，也就是叶子节点没有数据，而存储数据地址   ，称为非聚簇索引
+- `innoDB`叶子节点存放数据，称为聚簇索引
+- 一张表可能对应多个B+树
+
+
+
+## 11.3 索引操作
+
+- 查看索引结构
+
+```mysql
+show index from [tablename]\G
+```
+
+### 11.3.1主键索引 —— primary key
+
+1. 创建主键索引
+
+```mysql
+#其他创建主键索引的方法写在表的约束中
+alter table [] add primary key([]);
+```
+
+2. 删除主键索引
+
+```mysql
+slter table [] drop paimary key;
+```
+
+### 11.3.2 唯一索引 —— unique
+
+1. 其他索引的删除 
+
+```mysql
+alter table [] drop index []
+drop index [索引名] on [表名]
+```
+
+2. 其他操作在表的约束中
+
+
+
+### 11.3.3 普通索引
+
+1. 创建
+
+```mysql
+#1.在创建表时添加
+#2.alter，以某一列为普通索引
+alter table [] add index([]);
+#3.创建索引并给索引起名
+create index [index _name] on [表名](列名);
+```
+
+2. 删除与唯一键索引相同
+
+
+
+### 11.3.4 复合索引
+
+![image-20240203002842879](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240203002842879.png)
+
+![image-20240203002915143](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240203002915143.png)
+
+ 
+
+### 11.3.5 全文索引
+
+- 当文章字段或有大量文字的字段进行检索时，使用全文索引
+
+```mysql
+create table articles (
+	id int unsigned auto_increment not null primary key,
+    title varchar(200),
+    body text,
+    fulltext(title, body)
+)engine=MyISAM;
+
+
+```
+
+
+
+## 11.4 explain
+
+- 一条查询语句所用的索引
+
+```mysql
+expliain select * from ...;
+```
+
+# 12 事务
+
+## 12.1 什么是事务？
+
+- mysql是网络服务，多个客户端请求访问数据，mysql内部采用多线程 -> 事务锁？
+
+- 事务是一组DML语句，这些语句在逻辑上具有相关性，要么全部成功，要么全部失败
+
+- 一个完整的事务满足以下四个属性
+  - 原子性(Atomicity)：对于所有操作保证原子性，一次性全部完成
+  - 一致性(Consistency)：写入数据必须完全符合所有的预设规则，保证数据的精确度，可预期
+  - 隔离性(Isolation)：未提交、读提交、可重复读、串行化？
+  - 持久性(Durability)：保证数据的修改是永久的
