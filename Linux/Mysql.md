@@ -1040,11 +1040,173 @@ expliain select * from ...;
 ## 12.1 什么是事务？
 
 - mysql是网络服务，多个客户端请求访问数据，mysql内部采用多线程 -> 事务锁？
-
 - 事务是一组DML语句，这些语句在逻辑上具有相关性，要么全部成功，要么全部失败
-
 - 一个完整的事务满足以下四个属性
   - 原子性(Atomicity)：对于所有操作保证原子性，一次性全部完成
   - 一致性(Consistency)：写入数据必须完全符合所有的预设规则，保证数据的精确度，可预期
   - 隔离性(Isolation)：未提交、读提交、可重复读、串行化？
   - 持久性(Durability)：保证数据的修改是永久的
+
+### 哪些存储引擎支持事务？
+
+**![image-20240204232901951](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20240204232901951.png)**
+
+ 
+
+- 设置隔离级别为：读未提交
+
+```mysql
+set global transaction isolation level READ UNCOMMITTED;
+```
+
+- 查看链接mysql服务的用户
+
+```mysql
+show processlist;
+```
+
+
+
+## 12.2 事务的提交方式
+
+事 物的提交方式有两种：自动提交、手动提交
+
+```mysql
+#查看提交方式
+show variables like 'autocommit';
+#修改提交方式
+set autocommit=0;
+```
+
+
+
+## 12.3 事务的基本操作
+
+```mysql
+create table if not exists account (
+	id int primary key,
+    name varchar(20) not null default'',
+    balance decimal(10,2) not null default 0.0
+)engine=InnoDB default charset=utf8;
+
+#1. 启动事务
+start transaction;  
+#或
+begin;
+
+#2. 设置保存点s1
+savepoint s1;
+
+#3. 插入
+insert into account values(1, 'xx', 1234);
+
+#4. 回滚，事务提交之后无法回滚
+rollback to s1;
+
+#5. 结束
+commit;
+
+```
+
+
+
+## 12.4 事务异常
+
+- 只要输入`begin`或者`start transaction`，事务便需要通过`commit`提交之后才会持久化，与是否开启自动提交无关
+- 当操作异常时，mysql会自动回滚
+- 单独一句sql会被打包成事务，当自动提交打开时，mysql异常退出后，该sql语句会自动提交，关掉之后，需要手动`commit`
+
+
+
+
+
+## 12.5 事务的隔离级别
+
+### 12.5.1 理解 隔离性与隔离级别
+
+- **隔离性**：数据库中，为了保证事务执行过程中尽量不受干扰，区分事务谁先执行，谁在执行，一个执行的事务时原子的，相互隔离
+
+- **隔离级别**：数据库中，允许事务受不同程度的干扰
+  
+  - 读未提交(read uncommitted)：两个事务，当一个事务对数据进行修改但未提交，第二个事务立马能看见修改（隔离级别最低）
+  
+    - **dirty read**：一个事务在执行中读到另一个执行中事务的更新（或其他操作）但是未`commit`的数据的现象
+  
+    ![图片](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/10b513008ea35ee880c592a88adcb12f.png)
+  
+  - 读提交(read committed )：一端提交之后，另一端才能看见修改
+  
+    - 不可重复读（non repeatable read)：用一个事务内，在不同时间段独到的数据不同
+  
+    ![图片](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/f5b4f8f0c0adcf044b34c1f300a95abf.png)
+  
+    - 幻读：当同一个查询在不同的时间产生不同的结果集时，事务中就会出现所谓的幻象问题。例如，如果 SELECT 执行了两次，但第二次返回了第一次没有返回的行，则该行是“幻像”行。
+  
+      ![图片](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/d19a1019dc35dfe8cfe7fbff8cd97e31.png)
+  
+    
+  
+  - 可重复读(repeatable read)：一端提交之后，另一端需要也提交或者结束才能看见修改（默认隔离级别）
+  
+  - 串行化(serializable)：在每个读的数据行上加上共享锁，强制事务排序，使之不可能互相冲突（隔离级别最高）
+
+### 12.5.2 如何解决幻读问题
+
+
+
+## 12.6 查看与设置隔离级别
+
+1. 查看隔离级别
+
+```mysql
+select @@global.tx_isolation;  #全局
+
+select @@session.tx_isolation;  #仅该会话（局部）
+
+```
+
+2. 设置
+
+```mysql
+#[]内可不写， {}内四选一
+set [session|global] transaction isolation level {read uncommitted | read committed | repeatable read | serializable};
+
+#设置完全局之后，重新登录之后，局部和默认的隔离级别通过全局初始化
+```
+
+
+
+## 12.7 理解RC与RR —— MVCC机制
+
+多版本并发控制（MVCC）是一种用来解决读写冲突的无锁并发控制
+
+- 每个事务都有一个事务ID，根据事务ID决定事务的先后顺序
+
+ 
+
+- 隐藏字段
+
+  ![image-20240206001645601](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240206001645601.png)
+
+- undo log
+
+MySQL以服务进程的方式在内存中运行，一些机制例如：索引、事务、隔离性、日志等都是在内存中完成的，即在MySQL内部的相关缓冲区中，保存相关数据据，在合适时间写入磁盘中
+
+ 先简单理解成一个内存缓冲区，用来保存日志数据
+
+
+
+- Read View
+
+Read View本质是用来进行可见性判断的，当某个事务执行快照读时，会对该记录创建一个`Read View`读视图
+
+
+
+
+
+
+
+
+
+
+
