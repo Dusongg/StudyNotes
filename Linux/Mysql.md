@@ -1200,6 +1200,90 @@ MySQL以服务进程的方式在内存中运行，一些机制例如：索引、
 
 Read View本质是用来进行可见性判断的，当某个事务执行快照读时，会对该记录创建一个`Read View`读视图
 
+- 事务中快照读的结果非常依赖该事务首次出现快照读的地方，决定了该事务后续快照读结果的能力
+
+
+
+
+
+### RC与RR的本质区别
+
+- RC级别下，事务中每次快照读都会新生成一个Read View
+- RR级别下，同一个事务下的第一次快照才会创建Read View
+
+
+
+# 13 视图
+
+视图是一个虚拟表，其内容由表查询定义。 
+
+```mysql
+#语法
+create view [view_name] as [基表];
+
+
+#E.G.
+create view ename_dname as select ename, dname from emp inner join dept on emp.deptno=dept.deptno;
+```
+
+
+
+- 修改**基表**，同样也会影响视图的数据
+
+
+
+
+
+# 14 用户管理
+
+## 14.1 用户操作
+
+```mysql
+#查看主机、用户、密码
+select host, user, authentication_string from user;
+
+#创建一个在本地登录的用户，不能远程登陆，Dusong 密码：123456
+create user 'Dusong'@'localhost' identified by '123456';   
+
+#刷新
+flush privileges;
+
+#删除用户
+drop user '用户名'@'主机名';
+
+#创建可以远端登录的用户
+create user 'Dusong'@'%' identified by '123456';
+
+#自己该自己的密码
+set password=password('xxxx');
+
+#root用户改别人的密码 
+#1.
+set password for '用户名'@'主机名'=password('xxxx');
+#2.
+update user set authentication_string=password('xxx') where user='用户名';
+```
+
+## 14.2 用户权限
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
