@@ -38,6 +38,11 @@
 
 ## 1.3 配置文件`my.cnf`
 
+```cnf
+//免密码登录
+--skip-grant-tables  
+```
+
 
 
 # 2 基础知识
@@ -1236,9 +1241,18 @@ create view ename_dname as select ename, dname from emp inner join dept on emp.d
 
 # 14 用户管理
 
+- root初始化密码
+
+![image-20240211222326692](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240211222326692.png)
+
+> root:Youyang@826826
+>
+> Dusong:Dusong@041008
+
 ## 14.1 用户操作
 
 ```mysql
+use musql;
 #查看主机、用户、密码
 select host, user, authentication_string from user;
 
@@ -1266,11 +1280,124 @@ update user set authentication_string=password('xxx') where user='用户名';
 
 ## 14.2 用户权限
 
+```mysql
+#给某用户权限
+grant 权限列表 on 库.表名 to '用户名'@'主机名'
+
+# 给某用户所有权限
+grant all [privileges] on ...;
+
+#查看某个用户的权限
+show grant for ''@'';
+
+#去掉用户的某个权限
+revoke [] on 库.表名 from ''@''      
+#eg. revoke delete,insert on rootDB.user from 'Dusong'@'%';
+```
 
 
 
+# 15 C/C++引入MySQL客户端库
+
+```bash
+#mysql动静态库
+ls /usr/lib64/mysql/
+#mysql头文件
+ls /usr/include/mysql/
+```
+
+```cpp
+//查看客户端版本
+mysql_get_client_info()
+```
+
+## 15.1 C API
+
+- 初始化
+
+```cpp
+#include <mysql/mysql.h>
+#include <iostream>
+
+int main() {
+    //初始化
+	MYSQL *myfd = mysql_init(nullptr);
+    
+    //链接, 返回nullptr则链接失败
+    mysql_real_connect(myfd, "127.0.0.1", "Dusong", "123456", "test_db", 3306, nullptr, 0); 
+    
+    //设置字符集
+    mysql_set_character_set(myfd, "utf8"); 
+    
+    //sql
+    mysql_query(myfd, "select * from user");  //查询user表
+    
+    //获取结果
+    MYSQL_RES *res = mysql_store_result(myfd);
+        
+    //关闭连接 
+    mysql_close(myfd);
+}
+```
+
+- 链接数据库
+
+![image-20240208143738984](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240208143738984.png)
 
 
+
+- 设置字符集，默认时`latin1`，而`mysqld`使用的`utf8`
+
+```cpp
+mysql_set_character_set(myfd, "utf8");
+```
+
+
+
+- 下发mysql命令
+
+ ![image-20240208152527463](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240208152527463.png)
+
+- 获取查询结果集 （select）
+
+  ![image-20240208154044350](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240208154044350.png)
+
+  - 获取行数：`my_ulonglong mysql_num_rows(MYSQL_RES *res)`
+  - 获取列数：`my_ulonglong mysql_num_fields(MYSQL_RES *res)`
+
+- 打印结果
+
+```cpp
+my_ulonglong row = mysql_num_rows(res);
+my_ulonglong col = mysql_num_fields(res);
+
+//属性
+MYSQL_FIELD *fields = mysql_fetch_fields(res);
+for (int i = 0; i < col; i++) {
+    cout << fields[i].name << '\t';
+}
+cout << '\n';
+
+
+//内容
+for (int i = 0; i < row; i++) {
+    MYSQL_RES row_res = mysql_fetch_row(res);
+    for (int j = 0; j < col; j++) {
+        cout << row_res[j] << '\t';
+    }
+    cout << '\n';
+}
+```
+
+
+
+- 释放结果集的空间
+
+![image-20240210221818901](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240210221818901.png)
+
+
+
+![image-20240212135852934](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240212135852934.png)
 
 
 
