@@ -21,14 +21,20 @@
   - `git log --graph --abbrev-commit`:可视化分支
   - `git status`：查看是否被修改（暂存区）
   - `git diff [filename]`：查看修改内容
-### 5 版本回退
+### [5 版本回退](https://www.cnblogs.com/qdhxhz/p/9757390.html)
+
+#### 工作区(Workspace)、暂存区(Index/Stage)、版本库(Repository)、远程仓库(Remote)
+
+![image-20240228211020338](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240228211020338.png)
+
    - `git reset --soft [HEAD]`: 回退**版本库**的内容
    - `git reset --mixed [HEAD]`: 回退**暂存区、版本库**的内容
    - `git reset --hard [HEAD]`:回退**工作区、暂存区、版本库**的内容
 ### 6 撤销修改
-    - `git checkout --[filename]`:将**工作区**撤销到最后一次add/commit
-    - `git reset --mixed HEAD`或`git reset --hard HEAD`:**工作区和暂存区**均被修改，回退到HEAD(当前版本)，(HEAD^表示回退到上一个版本，HEAD^^表示回退到上两个版本)
-    - `git reset --hard HEAD^`：**工作区、暂存区、版本库**均被修改，且commit之后没有push
+- `git checkout --[filename]`:将**工作区**撤销到最后一次add/commit
+- `git reset --mixed HEAD`或`git reset --hard HEAD`:**工作区和暂存区**均被修改，回退到HEAD(当前版本)，(HEAD^表示回退到上一个版本，HEAD^^表示回退到上两个版本)
+- `git reset --hard HEAD^`：**工作区、暂存区、版本库**均被修改，且commit之后没有push
+
 ### 7 删除文件
   1. 法一：`rm [filename]`   ->  `git add [filename]`   ->  `git commit -m “”`
   2. 法二：`git rm [filename]`  ->  `git commit -m “”`
@@ -55,6 +61,10 @@
 ### 7. 强制删除分支
 `git branch -D [branchname]`
 
+### 8. 重命名分支
+
+`git branch -M []`
+
 # Git远程操作
 ## 远程推送
 1. `git add`
@@ -64,7 +74,8 @@
 ## 远程拉取仓库
 `git pull origin master:[本地分支]`：将远程仓库中的新内容拉取到本地仓库；*origin master 表示远端仓库的master分支，若远程分支名与本地分支名一样，可省略拉取 + 合并*
       
-## 忽略文件
+
+## 忽略文件`.gitignore`
 - ` vim .gitignore `   更改ignore文件
 - ` *[文件后缀] `      表示忽略此类文件   例如： *.jpg  
 - ` ![文件名] `         表示不排除该文件   例如：!name.jpg
@@ -92,7 +103,7 @@
 ## 1、同一分支下进行
 ### 协作开发
 1. 所有操作在本地分支上完成，最后用push推送到远端分支
-- 查看远程分支：`git branch -`     
+- 查看远程分支：`git branch `     
 - 查看远端与本地的分支： `git branch -a`
 2. 将远程分支拉到本地： `git pull`
 3. 查看本地分支与远程分支是否建立连接： `git branch -vv`

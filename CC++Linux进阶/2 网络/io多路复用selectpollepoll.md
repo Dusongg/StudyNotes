@@ -1,0 +1,433 @@
+# 1 TCP
+
+- 建立链接不需要代码显示参数
+
+  ![](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240229235243829.png)
+
+  ![image-20240229235224739](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240229235224739.png)
+
+- `shutdown`：关闭tcp链接双工中的一路； `close`：关闭fd文件描述符
+
+
+
+- 查看tcp/udp状态信息`netstat -naop`
+
+- 思考：网络中出现大量`TIME_WAIT`？（`TIME_WAIT`是主动断开方的状态·）
+
+
+
+- 思考：网络中出现大量`CLOSE_WAIT` (断开链接被动方状态)
+
+# 2 IO多路复用
+
+## 2.1 `select`
+
+![image-20240302125421719](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240302125421719.png)
+
+- `fd_set`源码：
+
+![image-20240301192017969](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240301192017969.png)
+
+`1024/(8 * sizeof(long)) `：`fds_bits`是位图，总共有1024个位，内核规定超过1024个io就不能用`select`
+
+```cpp
+```
+
+- `select`的缺点
+  1. 参数较多
+  2. 每次select需要把readfds拷贝置内核
+  3. 对io的数量是有限的
+- `select`性能的缺陷：
+  1. copy
+  2. 每次O(n)遍历io集合，找到就绪集合
+
+## 2.2 `poll`
+
+- poll底层实现和select一样，但是参数进行了优化
+
+![image-20240302132135613](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240302132135613.png)
+
+## 2.3 `epoll`
+
+- 思考：epoll有没有用mmap？
+
+```cpp
+ #define MAX_EVENTS 10
+struct epoll_event ev, events[MAX_EVENTS];
+int listen_sock, conn_sock, nfds, epollfd;
+
+/* Set up listening socket, 'listen_sock' (socket(),
+  bind(), listen()) */
+
+epollfd = epoll_create(10);
+if (epollfd == -1) {
+   perror("epoll_create");
+   exit(EXIT_FAILURE);
+}
+
+ev.events = EPOLLIN;
+ev.data.fd = listen_sock;
+if (epoll_ctl(epollfd, EPOLL_CTL_ADD, listen_sock, &ev) == -1) {
+   perror("epoll_ctl: listen_sock");
+   exit(EXIT_FAILURE);
+}
+
+for (;;) {
+   nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
+   if (nfds == -1) {
+       perror("epoll_pwait");
+       exit(EXIT_FAILURE);
+   }
+    
+	for (n = 0; n < nfds; ++n) {
+       if (events[n].data.fd == listen_sock) {
+           conn_sock = accept(listen_sock,
+                           (struct sockaddr *) &local, &addrlen);
+           if (conn_sock == -1) {
+               perror("accept");
+               exit(EXIT_FAILURE);
+           }
+           setnonblocking(conn_sock);
+           ev.events = EPOLLIN | EPOLLET;
+           ev.data.fd = conn_sock;
+           if (epoll_ctl(epollfd, EPOLL_CTL_ADD, conn_sock,
+                       &ev) == -1) {
+               perror("epoll_ctl: conn_sock");
+               exit(EXIT_FAILURE);
+           }
+       } else {
+           do_use_fd(events[n].data.fd);
+       }
+   }
+}
+
+```
+
+
+
+### 2.3.1 `epoll_create`
+
+![image-20240302132919144](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240302132919144.png)![image-20240302132929302](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240302132929302.png)
+
+### 2.3.2 `epoll_ctl`
+
+操作epoll文件描述符，对epoll的红黑树节点进行增删等操作
+
+- 非阻塞，不会被挂起
+
+![image-20240302133716487](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240302133716487.png)
+
+op:对应操作
+
+fd：添加事件的fd
+
+event: 对应事件
+
+![image-20240302134159058](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240302134159058.png)
+
+### 2.3.3 `epoll_wait`
+
+- 阻塞一段时间，等待事件发生
+- 返回事件数量，事件集添加到events数组中。也就是遍历红黑树的双向链表，将链表节点的数据拷贝出来，拷贝完后删除节点
+
+
+
+### 2.3.4 水平触发(LT)/边沿触发(ET)
+
+LT：有数据就一直触发（epoll默认的触发方式）
+
+ET：数据来了才触发
+
+![image-20240302135232505](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240302135232505.png)设置事件处理的方式为ET
+
+> 如何解决TCP粘包问题？
+>
+> 在TCP包头定义内容长度，通过水平触发方式，连续读，先读内容长度，后把内容读完
+
+思考：epoll是否线程安全？
+
+
+
+
+
+```cpp
+
+#include <sys/socket.h>
+#include <errno.h>
+#include <netinet/in.h>
+
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+#include <pthread.h>
+#include <sys/poll.h>
+#include <sys/epoll.h>
+
+
+// block
+void *client_thread(void *arg) {
+
+	int clientfd = *(int *)arg;
+
+	while (1) {
+
+		char buffer[128] = {0};
+		int count = recv(clientfd, buffer, 128, 0);
+		if (count == 0) {
+			break;
+		}
+		
+		//
+		
+		send(clientfd, buffer, count, 0);
+		printf("clientfd: %d, count: %d, buffer: %s\n", clientfd, count, buffer);
+
+	}
+
+	close(clientfd);
+}
+
+
+// tcp 
+int main() {
+
+	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+	struct sockaddr_in serveraddr;
+	memset(&serveraddr, 0, sizeof(struct sockaddr_in));
+
+	serveraddr.sin_family = AF_INET;
+	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	serveraddr.sin_port = htons(2048);
+
+	if (-1 == bind(sockfd, (struct sockaddr*)&serveraddr, sizeof(struct sockaddr))) {
+		perror("bind");
+		return -1;
+	}
+
+	listen(sockfd, 10);
+
+#if 0
+	struct sockaddr_in clientaddr;
+	socklen_t len = sizeof(clientaddr);
+	int clientfd = accept(sockfd, (struct sockaddr*)&clientaddr, &len);
+	printf("accept\n");
+
+#if 0
+
+	char buffer[128] = {0};
+	int count = recv(clientfd, buffer, 128, 0);
+	send(clientfd, buffer, count, 0);
+	printf("sockfd: %d, clientfd: %d, count: %d, buffer: %s\n", sockfd, clientfd, count, buffer);
+
+#else
+
+	while (1) {
+
+		char buffer[128] = {0};
+		int count = recv(clientfd, buffer, 128, 0);
+		if (count == 0) {
+			break;
+		}
+		send(clientfd, buffer, count, 0);
+		printf("sockfd: %d, clientfd: %d, count: %d, buffer: %s\n", sockfd, clientfd, count, buffer);
+
+	}
+#endif
+
+
+#elif 0
+
+	while (1) {
+
+		struct sockaddr_in clientaddr;
+		socklen_t len = sizeof(clientaddr);
+		int clientfd = accept(sockfd, (struct sockaddr*)&clientaddr, &len);
+
+		pthread_t thid;
+		pthread_create(&thid, NULL, client_thread, &clientfd);
+		
+
+	}
+
+#elif 0 // select
+
+	//int nready = select(maxfd, rset, wset, eset, timeout);
+
+
+	fd_set rfds, rset;
+	FD_ZERO(&rfds);
+	FD_SET(sockfd, &rfds);
+
+	int maxfd = sockfd;
+
+	printf("loop\n");
+
+	while (1) {
+
+		rset = rfds;	
+	
+		int nready = select(maxfd+1, &rset, NULL, NULL, NULL); 
+		
+		if (FD_ISSET(sockfd, &rset)) {
+			struct sockaddr_in clientaddr;
+			socklen_t len = sizeof(clientaddr);
+			
+			int clientfd = accept(sockfd, (struct sockaddr*)&clientaddr, &len);
+
+			printf("sockfd: %d\n", clientfd);
+
+			FD_SET(clientfd, &rfds);
+			maxfd = clientfd;
+		}
+
+// close
+
+// rfds --> i , FD_CLR
+
+		int i = 0;
+		for (i = sockfd+1;i <= maxfd;i ++) {
+
+			if (FD_ISSET(i, &rset)) { //
+
+				char buffer[128] = {0};
+				int count = recv(i, buffer, 128, 0);
+				if (count == 0) {
+					printf("disconnect\n");
+					//close(i);
+
+					FD_CLR(i, &rfds);
+					close(i);
+					
+					break;
+				}
+				
+				send(i, buffer, count, 0);
+				printf("clientfd: %d, count: %d, buffer: %s\n", i, count, buffer);
+
+			}
+			
+		}
+
+	}
+#elif 0
+
+
+	struct pollfd fds[1024] = {0};
+
+	fds[sockfd].fd = sockfd;
+	fds[sockfd].events = POLLIN;
+
+	int maxfd = sockfd;
+
+	while (1) {
+
+		int nready = poll(fds, maxfd+1, -1);
+
+		if (fds[sockfd].revents & POLLIN) {
+
+			struct sockaddr_in clientaddr;
+			socklen_t len = sizeof(clientaddr);
+			
+			int clientfd = accept(sockfd, (struct sockaddr*)&clientaddr, &len);
+
+			printf("sockfd: %d\n", clientfd);
+			fds[clientfd].fd = clientfd;
+			fds[clientfd].events = POLLIN;
+
+			maxfd = clientfd;
+		} 
+
+		int i = 0;
+		for (i = sockfd+1;i <= maxfd;i ++ ) {
+
+			if (fds[i].revents & POLLIN) {
+
+				char buffer[128] = {0};
+				int count = recv(i, buffer, 128, 0);
+				if (count == 0) {
+					printf("disconnect\n");
+
+					fds[i].fd = -1;
+					fds[i].events = 0;
+			
+					close(i);
+					
+					continue;
+				}
+				
+				send(i, buffer, count, 0);
+				printf("clientfd: %d, count: %d, buffer: %s\n", i, count, buffer);
+
+			}
+
+		}
+
+	}
+
+#else
+
+	int epfd = epoll_create(1); // int size  > 0
+
+	//pthread_create();
+
+	struct epoll_event ev;
+	ev.events = EPOLLIN;
+	ev.data.fd = sockfd;
+
+	epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &ev);
+
+	struct epoll_event events[1024] = {0};
+	while (1) {
+
+		int nready = epoll_wait(epfd, events, 1024, -1);	//-1表示阻塞等待
+
+		int i = 0;
+		for (i = 0;i < nready;i ++) {
+
+			int connfd = events[i].data.fd;
+			if (sockfd == connfd) {
+
+				struct sockaddr_in clientaddr;
+				socklen_t len = sizeof(clientaddr);
+				
+				int clientfd = accept(sockfd, (struct sockaddr*)&clientaddr, &len);
+
+				ev.events = EPOLLIN | EPOLLET;
+				ev.data.fd = clientfd;
+				epoll_ctl(epfd, EPOLL_CTL_ADD, clientfd, &ev);
+
+				printf("clientfd: %d\n", clientfd);
+
+			} else if (events[i].events & EPOLLIN) {
+				char buffer[10] = {0};    //buffer空间不足时考虑LE/ET
+				int count = recv(connfd, buffer, 10, 0);
+				if (count == 0) {
+					printf("disconnect\n");
+
+					epoll_ctl(epfd, EPOLL_CTL_DEL, connfd, NULL);		
+					close(i);
+					
+					continue;
+				}
+				
+				send(connfd, buffer, count, 0);
+				printf("clientfd: %d, count: %d, buffer: %s\n", connfd, count, buffer);
+
+			}
+
+		}
+
+	}
+
+
+#endif
+	getchar();
+	//close(clientfd);
+
+}
+
+
+```
+
