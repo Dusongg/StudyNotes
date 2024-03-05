@@ -146,10 +146,6 @@ ET：数据来了才触发
 
 思考：epoll是否线程安全？
 
-
-
-
-
 ```cpp
 
 #include <sys/socket.h>
@@ -431,3 +427,14 @@ int main() {
 
 ```
 
+
+
+# 3 reactor
+
+## 3.1 面向io/面向事件
+
+![image-20240303214704539](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240303214704539.png)
+
+- reactor面向两种事件，调用不同的回调函数
+
+![image-20240303225815019](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240303225815019.png)
