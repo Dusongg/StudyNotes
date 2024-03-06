@@ -438,3 +438,17 @@ int main() {
 - reactor面向两种事件，调用不同的回调函数
 
 ![image-20240303225815019](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240303225815019.png)
+
+
+
+## 3.2 性能测试
+
+```bash
+#     链接数量 持续事件 使用线程数量
+./wrk -c 100 -d10s -t 50 http://134.175.52.60:8888
+```
+
+
+
+
+
