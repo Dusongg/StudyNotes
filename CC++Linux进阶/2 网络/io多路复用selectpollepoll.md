@@ -429,7 +429,7 @@ int main() {
 
 
 
-# 3 reactor
+# 3 [reactor](https://github.com/Dusongg/Linux_network_design/tree/main/reactor)
 
 ## 3.1 面向io/面向事件
 
@@ -442,6 +442,8 @@ int main() {
 
 
 ## 3.2 性能测试
+
+- 用wrk测qbs（每一秒钟能够处理的请求数量）
 
 ```bash
 #     链接数量 持续事件 使用线程数量
