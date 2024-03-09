@@ -818,8 +818,7 @@ select * from emp where (deptno, job)=(select deptno, job from emp where enmae='
 ```mysql
 # 显示每个高于自己部门平均工资的员工的信息
 select * from emp, (select deptno, avg(sal) avg_sal  from emp group by deptno) as tmp where emp.deptno=tmp.deptno and emp.sal>tmp.avg_sal;
-
-# 显示每个部门的信息和人员数量
+ 显示每个部门的信息和人员数量
 select * from dept t1, (select deptno, count(*) dept_num from emp group by deptno) t2 where t1.deptno=t2.deptno;
 ```
 
