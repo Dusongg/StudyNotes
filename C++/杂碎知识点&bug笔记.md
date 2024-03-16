@@ -337,3 +337,41 @@ cppCopy codestruct Node {
 ```
 
 如果需要使用`std::shared_ptr`管理不完整类型的对象，通常需要使用指针或者其他手段来间接管理这些对象的生命周期。
+
+
+
+
+
+# 12 `const`成员函数对`unordered_map`成员使用`operator[]`
+
+```cpp
+class test {
+public:
+	unordered_map<string, string> _fields;
+	std::string getField(const std::string& key) const {
+		return (_fields.find(key) != _fields.end()) ? _fields[key] : "";
+	}
+};
+```
+
+> 
+> 这个错误提示是由于 `unordered_map` 不支持 `const` 对象上的非 `const` 操作。在您的 `getField` 函数中，由于函数是 `const` 的，您不能修改 `_fields` 成员，但是 `unordered_map` 的 `operator[]` 方法会插入新元素如果键不存在。这会导致问题，因为这种行为修改了对象的状态。
+>
+> 您可以通过使用 `find` 方法来避免这个问题，它不会修改 `unordered_map`，并且可以在键不存在时返回 `_fields.end()`。下面是修正后的代码：
+>
+> ```
+> cppCopy codeclass test {
+> public:
+>     unordered_map<string, string> _fields;
+>     std::string getField(const std::string& key) const {
+>         auto it = _fields.find(key);
+>         return (it != _fields.end()) ? it->second : "";
+>     }
+> };
+> ```
+>
+> 这样，即使在 `const` 函数中，也可以安全地访问 `_fields` 的内容而不会改变它的状态。
+
+**<u>因为`const`对象只能调用`const`成员函数</u>**，**<u>而std::unordered_map中没有`T& operator[](const Key& key) const {}`</u>**
+
+![image-20240317034246606](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240317034246606.png)
