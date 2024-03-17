@@ -342,7 +342,7 @@ cppCopy codestruct Node {
 
 
 
-# 12 `const`成员函数对`unordered_map`成员使用`operator[]`
+# 12 `const`成员函数对`unordered_map`成员使用`operator[]` -> 改用`at`
 
 ```cpp
 class test {
