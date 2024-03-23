@@ -1,3 +1,5 @@
+https://gitlab.0voice.com/2310_vip/mysql_pool_impl
+
 mysql网络模型：
 
 3306端口
