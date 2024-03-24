@@ -1,6 +1,12 @@
-# 缓存命中-写回策略
+# CPU Cache 数据写入策略
+
+## 写直达
 
 
+
+## 写回
+
+![image-20240324172749933](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240324172749933.png)
 
 # 缓存不一致
 
@@ -49,3 +55,33 @@
 ## `memory_order_sec_cst`
 
 在被这个修饰的原子操作的前后都不能交换位置
+
+```cpp
+
+atomic<bool> x, y;
+atomic<int> z;
+//代码最终目的：先x = true  后 y = true， 让z++
+void write_x_then_y() {
+	x.store(true, std::memory_order_relaxed);
+	y.store(true, std::memory_order_release);   //写：先x后y
+}
+
+void read_y_then_x() {
+	while (!y.load(std::memory_order_acquire));   //读
+	if (x.load(std::memory_order_relaxed)) {   //这一句不能优化到acquire的前面
+		z++;		// 确保z等于1
+	}
+}
+
+int main() {
+	x = y = false;
+	z = 0;
+	thread t1(write_x_then_y);
+	thread t2(read_y_then_x);
+	t1.join();
+	t2.join();
+	cout << z << endl;
+	return 0;
+}
+```
+
