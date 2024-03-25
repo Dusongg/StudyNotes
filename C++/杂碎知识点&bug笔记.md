@@ -375,3 +375,17 @@ public:
 **<u>因为`const`对象只能调用`const`成员函数</u>**，**<u>而std::unordered_map中没有`T& operator[](const Key& key) const {}`</u>**
 
 ![image-20240317034246606](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240317034246606.png)
+
+# 13 `malloc`是线程安全的吗？
+
+在标准C中，`malloc`函数本身不是线程安全的，因为它在多线程环境下无法保证分配内存的正确性。如果在多线程程序中使用`malloc`，可能会导致竞态条件或内存错误。
+
+为了在多线程环境下安全地使用`malloc`，可以考虑以下方法：
+
+1. 使用线程库提供的线程安全的内存分配函数，如`pthread_alloc`。
+2. 在使用`malloc`之前使用互斥锁来保护内存分配的操作，确保同一时间只有一个线程在分配内存。
+
+另外，C11标准引入了`<threads.h>`头文件，提供了一组线程安全的内存分配函数，如`aligned_alloc`和`calloc`。
+
+
+
