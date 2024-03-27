@@ -1,3 +1,5 @@
+
+
 # 1. 变量模板
 
 ```cpp
@@ -342,3 +344,133 @@ cout << "Serail task finish, " << ms << " ms consumed, Result: " << sum << endl;
 
 
 
+# 9 Coroutines
+
+## 线程与协程的区别
+
+> C++中的协程和线程都是并发编程的概念，但它们有不同的执行方式和调度方式：
+>
+> 1. **执行方式：**
+>    - 线程是由操作系统调度的独立执行单元，一个进程可以包含多个线程，每个线程有自己的堆栈和程序计数器，可以并发执行不同的代码路径。
+>    - 协程是一种轻量级的执行单元，可以在一个线程内多个协程之间切换执行，但同一时刻只有一个协程处于执行状态。
+> 2. **调度方式：**
+>    - 线程的调度由操作系统负责，**<u>线程之间的切换需要进行上下文切换，涉及到内核态和用户态的切换</u>**，开销较大。
+>    - <u>**协程的调度由程序员控制，可以在协程之间自由切换，切换时不涉及内核态和用户态的切换，开销较小。**</u>
+> 3. **资源消耗：**
+>    - 线程的创建和销毁需要操作系统参与，涉及到堆栈和寄存器的分配和释放，资源消耗较大。
+>    - 协程是在用户空间管理的，创建和销毁开销较小，不需要操作系统参与。
+> 4. **适用场景：**
+>    - 线程适用于需要真正的并发执行和利用多核处理器的场景，例如需要同时处理大量IO操作或者进行密集计算的情况。
+>    - 协程适用于IO密集型的应用，可以提高程序的响应性能，减少线程切换带来的开销，同时也适用于需要管理大量并发任务的场景。
+>
+> 在实际应用中，选择线程还是协程取决于具体的需求和性能要求。
+
+## 同步与异步的区别
+
+> 同步（Synchronous）和异步（Asynchronous）是描述程序执行方式的两个概念，主要涉及到任务的触发、执行和完成时机。
+>
+> 1. **同步**：在同步操作中，任务是按顺序依次执行的，每个任务需要等待上一个任务完成后才能开始执行。在一个任务执行的过程中，如果需要等待某个操作完成（比如等待IO操作完成或者等待另一个任务的结果），该任务会被阻塞，直到操作完成才能继续执行。
+> 2. **异步**：在异步操作中，任务的触发和执行是独立于主程序流程的，任务可以在后台或者并行执行，不需要等待上一个任务完成。异步操作通常会在任务完成时通知主程序，主程序可以继续执行其他任务，不需要等待异步操作完成。
+>
+> 在实际编程中，同步和异步的选择取决于应用的需求和性能要求。同步操作通常会导致程序阻塞，降低了程序的响应速度，但编写起来相对简单；而异步操作可以提高程序的响应速度和并发性，但编写起来可能会更加复杂，需要处理异步操作的完成通知和结果处理逻辑。
+
+
+
+
+
+# 10 类型转换相关
+
+## 10.1 禁止隐式类型转换
+
+```cpp
+void f(int) {}
+
+template<typename T>
+void f(T) = delete;
+
+struct X {
+	operator int()const { return 0; }
+};
+
+int main() {
+	f(1);
+
+	//以下类型转换报错
+	//f(1u);
+	//f(1lu);
+	//f(1.);
+	//f(1.f);
+	//f(X());
+}
+```
+
+## 10.2 `dynamic_cast` 和 `static_cast`的区别
+
+### 10.2.1 多态类类型
+
+![image-20240327205351459](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240327205351459.png)
+
+
+
+# 11 在<type_traits>里的
+
+## 11.1 `is_same`
+
+![image-20240327225608984](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240327225608984.png)
+
+```cpp
+#include <cstdint>
+#include <iostream>
+#include <type_traits>
+ 
+int main()
+{
+    std::cout << std::boolalpha;
+ 
+    // 一些由实现定义的状况
+ 
+    // 若 'int' 为 32 位则通常为 true
+    std::cout << std::is_same<int, std::int32_t>::value << '\n'; // 可能为 true
+    // 若使用 ILP64 数据模型则可能为 true
+    std::cout << std::is_same<int, std::int64_t>::value << '\n'; // 可能为 false
+ 
+    // 与上面相同的测试，但使用了 C++17 的 std::is_same_v<T, U> 格式
+    std::cout << std::is_same_v<int, std::int32_t> << ' ';  // 可能为 true
+    std::cout << std::is_same_v<int, std::int64_t> << '\n'; // 可能为 false
+ 
+    // 比较一对变量的类型
+    long double num1 = 1.0;
+    long double num2 = 2.0;
+    static_assert( std::is_same_v<decltype(num1), decltype(num2)> == true );
+ 
+    // 'float' 决非整数类型
+    static_assert( std::is_same<float, std::int32_t>::value == false );
+ 
+    // 'int' 为隐式的 'signed'
+    static_assert( std::is_same_v<int, int> == true );
+    static_assert( std::is_same_v<int, unsigned int> == false );
+    static_assert( std::is_same_v<int, signed int> == true );
+ 
+    // 不同于其他类型，'char' 既非 'unsigned' 亦非 'signed'
+    static_assert( std::is_same_v<char, char> == true );
+    static_assert( std::is_same_v<char, unsigned char> == false );
+    static_assert( std::is_same_v<char, signed char> == false );
+ 
+    // const 限定的类型 T 与非 const T 不同
+    static_assert( !std::is_same<const int, int>() );
+}
+```
+
+
+
+# 12 cv限定符 / [存储类型说明符](https://zh.cppreference.com/w/cpp/language/storage_duration)
+
+![image-20240327231357916](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240327231357916.png)
+
+
+
+# 13 [数组声明](https://zh.cppreference.com/w/cpp/language/array)
+
+![image-20240328000236913](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240328000236913.png)
+
+![image-20240327233705627](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240327233705627.png)
