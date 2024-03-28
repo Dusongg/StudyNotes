@@ -1,6 +1,8 @@
 
 
-# 1. 变量模板
+# 1 关于模板
+
+## 1.1 变量模板
 
 ```cpp
 template<typename T>
@@ -10,6 +12,28 @@ int main() {
 	cout << PI<float> << endl;     //3.14159
 }
 ```
+
+## 1.2 模板形参对象
+
+```cpp
+struct foo {
+	int t = 10;
+};
+
+template<foo f>   //f是左值
+class baz {
+public:
+	int t2 = f.t;    //用模板形参对象的成员给t2赋值
+};
+
+int main() {
+	cout << baz < foo{} > {}.t2 << endl;
+}
+```
+
+
+
+
 
 # 2. 结构化绑定-C++17
 
@@ -474,3 +498,45 @@ int main()
 ![image-20240328000236913](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240328000236913.png)
 
 ![image-20240327233705627](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240327233705627.png)
+
+# 14 [值类型](https://zh.cppreference.com/w/cpp/language/value_category#.E7.BA.AF.E5.8F.B3.E5.80.BC)
+
+![		](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240328144633760.png)
+
+```cpp
+int main()
+{
+    int a{42};
+    int& b{a};
+    int&& r{std::move(a)};
+ 
+    // 表达式 `42` 是纯右值
+    static_assert(is_prvalue<decltype((42))>::value);
+ 
+    // 表达式 `a` 是左值
+    static_assert(is_lvalue<decltype((a))>::value);
+ 
+    // 表达式 `b` 是左值
+    static_assert(is_lvalue<decltype((b))>::value);
+ 
+    // 表达式 `std::move(a)` 是亡值
+    static_assert(is_xvalue<decltype((std::move(a)))>::value);
+ 
+    // 变量 `r` 的类型是右值引用
+    static_assert(std::is_rvalue_reference<decltype(r)>::value);
+ 
+    // 变量 `b` 的类型是左值引用
+    static_assert(std::is_lvalue_reference<decltype(b)>::value);
+ 
+    // 表达式 `r` 是左值
+    static_assert(is_lvalue<decltype((r))>::value);
+}
+```
+
+- 无论类型，变量名构成的表达式是左值表达式
+
+- 关于对象成员表达式
+
+![image-20240328201915194](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240328201915194.png)
+
+![image-20240328202230321](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240328202230321.png)

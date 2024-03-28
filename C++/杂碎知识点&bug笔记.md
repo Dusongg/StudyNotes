@@ -389,3 +389,57 @@ public:
 
 
 
+# 14 有默认实参时的函数声明与定义分离
+
+```cpp
+int func(int i, int j = 10, int k = 20); // 提供默认参数
+int main() {
+	func(40); // 此处提供了一个参数
+}
+int func(int i, int j, int k) { // 定义时不提供默认参数值
+	return i;
+}
+```
+
+# 15 一个类的成员函数是否可以是另一个类的友元函数?
+
+- 可以
+
+```cpp
+class B; // 声明类B，因为A中的成员函数需要使用B类
+
+class A {
+public:
+    A(int x) : data(x) {}
+
+    void displayB(B &objB); // 类B的成员函数是类A的友元函数
+
+private:
+    int data;
+};
+
+class B {
+public:
+    B(int y) : value(y) {}
+
+    friend void A::displayB(B &objB); // 类A的成员函数是类B的友元函数
+
+private:
+    int value;
+};
+
+void A::displayB(B &objB) {
+    std::cout << "Value of B: " << objB.value << std::endl;
+}
+
+int main() {
+    A objA(10);
+    B objB(20);
+
+    objA.displayB(objB);
+
+    return 0;
+}
+
+```
+
