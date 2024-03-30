@@ -33,6 +33,26 @@ void setNoBlock(int fd) {
 
 ![image-20240326115130479](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240326115130479.png)
 
-- fd_set：读/写/异常文件描述符位图
+- fd_set：读/写/异常文件描述符位图，输入输出型参数
 
 ![image-20240326130722202](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240326130722202.png)
+
+
+
+## 缺点
+
+1. 等待的fd有上限 ： sizeof(fd_set)  * 8 = 1024
+2. 数据拷贝频率高
+3. 内核中也要遍历fd
+
+# 3 poll
+
+
+
+# 4 epoll
+
+
+
+![image-20240330231640551](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240330231640551.png)
+
+![image-20240330225942531](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240330225942531.png)
