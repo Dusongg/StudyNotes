@@ -567,3 +567,26 @@ int main() {
 }
 ```
 
+# 15 [[]]  ——属性访问器
+
+在C++中，`[[]]`是属性访问器（attribute specifier）的语法，用于指定一些属性或特性。这种语法通常用于标准库或一些编译器扩展中，用于指定特定的属性。
+
+例如，在C++11中，`[[noreturn]]`属性用于告诉编译器某个函数不会返回，可以帮助编译器进行一些优化。示例：
+
+```cpp
+cppCopy code[[noreturn]] void foo() {
+    throw "error";
+}
+```
+
+在这个例子中，`[[noreturn]]`告诉编译器`foo`函数不会正常返回，而是通过抛出异常来终止程序。
+
+另一个例子是`[[deprecated]]`属性，用于标记某个函数或变量已经被废弃不推荐使用。示例：
+
+```cpp
+cppCopy code[[deprecated("use newFunction instead")]] void oldFunction() {
+    // ...
+}
+```
+
+这种语法是C++11引入的，并在后续的标准中逐渐增强和扩展，用于提供更多的编译器和标准库特性。
