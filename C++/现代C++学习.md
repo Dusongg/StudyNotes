@@ -540,3 +540,30 @@ int main()
 ![image-20240328201915194](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240328201915194.png)
 
 ![image-20240328202230321](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240328202230321.png)
+
+
+
+## 亡值表达式 ： 亡值 / 纯右值
+
+![image-20240331175556678](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240331175556678.png)
+
+### `std::move`   && `std::forward`
+
+![image-20240331180646123](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240331180646123.png)
+
+### `decltype`
+
+![image-20240331180837645](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240331180837645.png)
+
+```cpp
+int main() {
+	int a = 1;
+	using xvalue = decltype(std::move(a));    //xvalue -> int&&
+	using prvalue = decltype(1);			  //prvalue -> int
+
+	//如果实参是没有括号的标识表达式或没有括号的类成员访问表达式，那么 decltype 产生该表达式指名的实体的类型。
+	using T = decltype(a);                    //T -> int
+	using lvalue = decltype((a));             //lvalue -> int& 
+}
+```
+
