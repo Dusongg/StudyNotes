@@ -1,5 +1,11 @@
 # Git基本操作
 
+## Permission denied (publickey).问题
+
+![254c97810ab8d4a64f2f2d44a982e33](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/254c97810ab8d4a64f2f2d44a982e33.png)
+
+## 基本指令
+
 ![image-20240116131105362](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116131105362.png)
 
 ### 1 初始化:
