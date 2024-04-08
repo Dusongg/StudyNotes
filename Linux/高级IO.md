@@ -56,3 +56,19 @@ void setNoBlock(int fd) {
 ![image-20240330231640551](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240330231640551.png)
 
 ![image-20240330225942531](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240330225942531.png)
+
+- epoll_creat()
+- epoll_ctl()
+
+![image-20240408180735321](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240408180735321.png)
+
+- epoll_wait()
+
+![image-20240408180756883](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240408180756883.png)
+
+## 4.1 ET / LT
+
+- ET通知一次需要上层将数据全部取走，则需要循环读取，直到读取出错，所以需要将fd设置成**<u>非阻塞</u>**的
+
+- ET的通知小路更高，且IO效率更高，因为此时接收缓冲区的空余空间更大，tcp接收窗口更大，对方能一次性发送的数据也就更多
+- 
