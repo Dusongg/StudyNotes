@@ -22,7 +22,7 @@ void setNoBlock(int fd) {
   - `#define EWOULDBLOCK EAGAIN`
   - `#define EAGAIN 11   /*Try again*/`
 
-
+- 错误码`errno == EINTR`：表示被中断了
 
 #  2 select
 

@@ -206,7 +206,7 @@ show processlist
 
 
 
-# 4 表的操作
+# 4 表的操作 — `create\alter\drop`
 
 ##  4.1 创建表
 
@@ -441,6 +441,12 @@ select find_in_set('a', 'a,b,c');    # 0为false 非0为true（下标）
 
 [^6]:address不能为null
 
+### 6.1.1 null的存储
+
+如果列属性允许为null，那么会默认有一个字节的空间表示一列是否为空，一列用一个bit表示（超过八列加一个字节，以此类推）
+
+![img1](https://cdn.xiaolincoding.com/gh/xiaolincoder/mysql/row_format/null%E5%80%BC%E5%88%97%E8%A1%A85.png)
+
 
 
 ## 6.2 default约束
@@ -449,7 +455,7 @@ select find_in_set('a', 'a,b,c');    # 0为false 非0为true（下标）
 - 没有写默认值，那么默认值默认为`NULL`（没有`not null` 约束时）
 
 ```mysql
-[type_name] [type] default [defualt_value]   # 设置默认值
+[field_name] [type] default [defualt_value]   # 设置默认值
 ```
 
 ![image-20240113174236444](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240113174236444.png)
@@ -613,7 +619,7 @@ select distinct [列名] from [table_name]
 | IS NOT NULL         | 不是 NULL                                                    |
 | LIKE / not like     | 模糊匹配。% 表示任意多个（包括 0 个）任意字符；_ 表示任意一个字符 |
 
-![image-20240116222650952](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116222650952.png)
+![image-20240116222650952](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240116222650952.png)[^8]
 
 - 逻辑运算符
   - 可以用括号将多个逻辑条件分组
@@ -650,6 +656,8 @@ select [] from [table_name] where ... limit n offset s;   #[s, n)
 ```
 
 ![image-20240117133040344](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240117133040344.png)
+
+- 考虑表中数据不足limit数量的情况
 
 ## 7.3 `update` —— 改
 
@@ -779,7 +787,7 @@ select * from emp where deptno=(select deptno from emp where ename='SMITH');
 
 **三个关键字：**
 
-1. `in`：筛选在一个集合中的列
+1. `in`/`not in`：筛选在一个集合中的列
 
 ```mysql
 # 查询与10号部门的工作岗位相同的员工的名字、岗位、工资、部门号，但是不包含10好部门自己的
@@ -923,7 +931,7 @@ select ename, dname from emp inner join dept on emp.deptno=dept.deptno and ename
 select 字段 from table1 left join table2 on 链接条件; 
 ```
 
-![image-20240121172034992](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240121172034992.png)
+![image-20240121172034992](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240121172034992.png)[^9]
 
 ### 10.2.2 右外连接
 
@@ -974,7 +982,7 @@ alter table [] add primary key([]);
 2. 删除主键索引
 
 ```mysql
-slter table [] drop paimary key;
+alter table [] drop paimary key;
 ```
 
 ### 11.3.2 唯一索引 —— unique
@@ -1420,3 +1428,7 @@ for (int i = 0; i < row; i++) {
 
 
 
+
+
+[^8]: 注意左模糊匹配造成索引失效
+[^9]: 注意外连接与内连接的区别
