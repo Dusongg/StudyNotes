@@ -150,4 +150,13 @@ public:
 > 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 > ```
 >
-> 
+
+
+
+
+
+# 3 前缀和优化dp
+
+[1871. 跳跃游戏 VII](https://leetcode.cn/problems/jump-game-vii/)
+
+![image-20240414151238792](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240414151238792.png)

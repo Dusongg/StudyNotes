@@ -711,14 +711,14 @@ insert into [table_name] select [column] from [table_name] ...;
 - `avg` 
 - `max` / `min`
 
-## 7.8 `group by` 分组查询 
+## 7.7.1 `group by` 分组查询 
 
 - 分组之后便于聚合统计
 - group by 按照后一列的值进行分组，分成不同行
 
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240117175209396.png" alt="image-20240117175209396" style="zoom: 50%;" />
 
-### 7.8.1 `having`
+## 7.7.2 `having`
 
 - 对分组聚合统计之后的数据进行筛选（类似于`where`）
 
@@ -731,7 +731,25 @@ select department_no, avg(salary) department_avg_salary from employee group by d
   - where对任意列进行筛选，having对聚合之后的结果进行筛选
   - where先，having在group by之后
 
+## 7.7.3 group by，where，having执行的先后顺序以及用法
 
+在 MySQL 中，`GROUP BY`，`WHERE`，和 `HAVING` 子句的执行顺序如下：
+
+1. `WHERE` 子句：`WHERE` 子句用于筛选行，仅选择符合条件的行。这是在聚合之前执行的，因此它可以用来过滤数据。
+2. `GROUP BY` 子句：`GROUP BY` 子句将行分组为汇总行，并为每个组计算汇总值（如 `COUNT`, `SUM`, `AVG` 等）。`GROUP BY` 子句在 `WHERE` 子句之后执行。
+3. `HAVING` 子句：`HAVING` 子句用于过滤分组后的结果。它在 `GROUP BY` 子句之后执行，并且只保留满足 `HAVING` 子句条件的分组。
+
+这里有一个简单的示例来说明它们的用法：
+
+```
+sqlCopy codeSELECT department, COUNT(*) as total
+FROM employees
+WHERE salary > 50000
+GROUP BY department
+HAVING COUNT(*) > 1;
+```
+
+这个查询首先筛选出薪资大于 50000 的员工，然后按部门分组。最后，它仅保留至少有两名员工的部门，并计算每个部门的员工总数。
 
 # 8 复合查询
 
