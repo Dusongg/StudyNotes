@@ -1025,7 +1025,7 @@ drop index [索引名] on [表名]
 #2.alter，以某一列为普通索引
 alter table [] add index([]);
 #3.创建索引并给索引起名
-create index [index _name] on [表名](列名);
+create index index_name on 表名(列名);
 ```
 
 2. 删除与唯一键索引相同
@@ -1124,9 +1124,79 @@ explain select ...;
 
 ![image-20240416155044523](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416155044523.png)
 
-- id：select查询的序列号，表示查询中执行select子句或者是操作表的顺序(id相同，执行顺序从上到下; id不同，值越大，越先执行)。
+- `id`：`select`查询的序列号，表示查询中执行select子句或者是操作表的顺序(id相同，执行顺序从上到下; id不同，值越大，越先执行)。
 
 ![image-20240416160104014](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416160104014.png)
+
+- `select_type`
+
+  表示SELECT的类型，常见的取值有SIMPLE〈简单表，即不使用表连接或者子查询)、PRIMARY（主查询，即外层的查询)、UNION(UNION中的第二个或者后面的查询语句）、SUBQUERY (SELECT/WHERE之后包含了子查询)）等
+
+- `type`
+
+  表示连接类型，性能由好到差的连接类型为NULL、system、const(通过主键或者唯一索引)、eq_ref、ref(非唯一索引)、range、index、all 。
+
+- `prossible_key`
+
+  显示可能应用在这张表上的索引，一个或者多个
+
+- `key`
+
+  实际用到的索引，没有则是NULL
+
+- `key_len`
+
+  表示索引中使用的字节数，该值为索引字段最大可能长度，并非实际使用长度，在不损失精确性的前提下，长度越短越好。
+
+- `rows`
+
+  MySQL认为必须要执行查询的行数，在innodb引擎的表中，是一个估计值，可能并不总是准确的。
+
+- `filtered`
+
+  表示返回结果的行数占需读取行数的百分比,filtered的值越大越好。
+
+## 11.5 索引失效
+
+1. ### 联合索引最左前缀法则
+
+如果索引了多列(联合索引)，要遵守最左前缀法则。最左前缀法则指的是查询从索引的最左列开始，并且不跳过索引中的列。如果跳跃某一列，索引将部分失效(后面的字段索引失效)。**<u>与位置无关</u>**
+
+2. ### 联合索引的范围查询
+
+   ![image-20240416220658495](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416220658495.png)
+
+3. ### 对索引进行函数操作
+
+![image-20240416221606468](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416221606468.png)
+
+4. ### 隐式转换
+
+![image-20240416221929847](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416221929847.png)
+
+5. ### 左模糊匹配
+
+6. ### or链接条件
+
+用or分割开的条件，如果or前的条件中的列有索引，而后面的列中没有索引，那么涉及的索引都不会被用到。
+
+7. 数据分布影响
+
+如果MySQL评估使用索引比全表更慢，则不使用索引
+
+![image-20240416222744109](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416222744109.png) 
+
+## 11.6 SQL提示
+
+![image-20240416223934095](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416223934095.png)
+
+##  11.7 覆盖索引
+
+尽量使用覆盖索引（查询使用了索引，并且需要返回的列，在该索引中已经全部能够找到)，减少select *。
+
+- extra信息：
+
+  ![image-20240416224928613](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416224928613.png)
 
 
 
@@ -1146,7 +1216,7 @@ explain select ...;
 
 **![image-20240204232901951](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20240204232901951.png)**
 
- 
+
 
 - 设置隔离级别为：读未提交
 
