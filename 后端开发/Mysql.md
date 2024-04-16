@@ -1057,15 +1057,80 @@ create table articles (
 
 
 
-## 11.4 explain
+## 11.4 性能分析
 
-- 一条查询语句所用的索引
+1. ### 查看SQL执行频率
+
+   ```mysql
+   show [global|session] status like 'Com_______';
+   ```
+
+2. ### 慢查询日志 —— 定位耗时查询
+
+ 开启后，当一条SQL超过了设置的`long_query_time`他就会记录到慢查询日志中![image-20240416152025109](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416152025109.png)
 
 ```mysql
-expliain select * from ...;
+#查看是否开启
+show variables like 'slow_query_log'
 ```
 
-# 12 事务
+- 在配置文件`/etc/my.cnf`中配置相关信息:
+
+  ```
+  #开启MySQL慢查询日志
+  slow_query_log = 1
+  
+  #设置慢查询日志时间
+  long_query_time = 2
+  ```
+
+  
+
+- 查看慢日志文件中记录的信息
+
+  ```bash
+  cat /var/lib/mysql/localhost-slow.log
+  ```
+
+3. ### profile —— 查看时间耗费在哪里
+
+```mysql
+#是否支持
+select @@have_profiling;
+
+#是否开启
+select @@profiling;
+
+#开启
+set [session|global] profiling = 1;
+
+#查看每一条SQL的耗时情况
+show profiles;
+
+#查看指定query_id的SQL语句各个阶段的耗时情况
+show profile for query query_id
+
+#查看指定query_id的SQL语句CPU的使用情况
+show profile cpu for query query_id
+```
+
+![image-20240416154537403](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416154537403.png)                                                                                
+
+4. ### explain
+
+```mysql
+explain select ...;
+```
+
+![image-20240416155044523](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416155044523.png)
+
+- id：select查询的序列号，表示查询中执行select子句或者是操作表的顺序(id相同，执行顺序从上到下; id不同，值越大，越先执行)。
+
+![image-20240416160104014](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416160104014.png)
+
+
+
+# 12 事务 
 
 ## 12.1 什么是事务？
 
