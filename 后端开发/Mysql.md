@@ -30,13 +30,21 @@
 
 ![image-20240111195239301](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240111195239301.png)
 
-## 1.2 登录 & 退出
+## 1.2 [Ubuntu下安装MySQL](https://ubuntu.com/server/docs/databases-mysql)
+
+
+
+## 1.3 登录 & 退出
 
 `mysql -u root -p`
 
 `quit`
 
-## 1.3 配置文件`my.cnf`
+- 初始化root密码
+
+![image-20240417214538696](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240417214538696.png)
+
+## 1.4 配置文件`my.cnf`
 
 ```cnf
 //免密码登录
@@ -1404,10 +1412,6 @@ create view ename_dname as select ename, dname from emp inner join dept on emp.d
 - root初始化密码
 
 ![image-20240211222326692](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240211222326692.png)
-
-> root:Youyang@826826
->
-> Dusong:Dusong@041008
 
 ## 14.1 用户操作
 
