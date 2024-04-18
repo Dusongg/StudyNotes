@@ -1448,22 +1448,352 @@ Read View本质是用来进行可见性判断的，当某个事务执行快照�
 
 
 
-# 13 视图
+# 13 视图/存储过程/触发器
+
+## 13.1 视图
 
 视图是一个虚拟表，其内容由表查询定义。 
+
+视图的作用：操作简单，安全， 数据独立（屏蔽了基表的变化）
 
 ```mysql
 #语法
 create view [view_name] as [基表];
+create [or replace] view 视图名称[(列明列表)] as select语句 [with [cascaded | local] check option];
 
 
 #E.G.
 create view ename_dname as select ename, dname from emp inner join dept on emp.deptno=dept.deptno;
+
+```
+
+![image-20240418184659435](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418184659435.png)
+
+- ### 在视图中插入/删除数据
+
+### 13.1.1 视图的检查选项
+
+#### cascaded
+
+- 如果当前视图加了`with cascaded check option`，那么插入时该视图及之上的视图都会检查
+
+![image-20240418214353378](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418214353378.png)
+
+#### local
+
+- 如果当前视图加了`with local check option`，那么插入时只检查当前视图有没有检查选项，对于上层有则检查，没有则不检查（MySQl8.0）
+
+  ![image-20240418221309421](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418221309421.png)
+
+```mysql
+create or replace view stu_v_4 as select id , name from student where id <= 15 ;
+insert into stu_v_4 values(5 , 'Tom');		#ok
+insert into stu_v_4 values(16, 'Tom');		#error
+
+create or replace view stu_v_5 as select id, name from stu_v_4 where id >= 10 with local check option ;
+insert into stu_v_5 values (13, ' Tom ' );		#ok
+insert into stu_v_5 values(17,' Tom ' );   		#ok ： 不检查id <= 15
+```
+
+### 13.1.2 视图的更新
+
+![image-20240418221640943](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418221640943.png)
+
+## 13.2 存储过程
+
+- 特点：封装，复用；可以接受参数，也可以返回数据；减少网络交互，提升效率
+
+```mysql
+delimiter $$
+
+#创建
+create procedure 存储过程名称([参数列表])
+begin
+	...    #在命令行中遇到分号就结束，所以这里需要用delimiter设置结束符
+end;
+
+delimiter ;
+
+#调用
+call 名称([参数]);
+
+#查看
+#查看xxx数据库的存储过程
+select * from information_schema.ROUTINES where ROUTINE_SCHEMA = 'xxx';	
+#查询存储过程的内容
+show create procedure 名称;	
+
+#删除
+drop procedure [if exists] 名称;
+
+
+```
+
+### 13.2.1 变量
+
+####  系统变量 
+
+```mysql
+#查看系统变量
+SHOW [SESSION | GLOBAL] VARIABLES;
+SHOW [SESSION | GLOBAL] VARIABLES LIKE 'xxx%';
+SELECT @@[SESSION. |GLOBAL.]系统变量名;
+
+#设置系统变量
+SET [SESSION | GLOBAL] 系统变量名 = 值;
+SET @@[SESSION | GLOBAL] 系统变量名 = 值;
+```
+
+- 如果没有指定SESSION/GLOBAL，默认是SESSION，会话变量。
+- mysql服务重新启动之后，所设置的全局参数会失效，要想不失效，可以在`/etc/tany.cnf` 中配置。
+
+#### 用户自定义变量
+
+```mysql
+#赋值
+赋值
+SET @var_name1 = expr [@var_name2 = expr ] ... ;
+SET @var_name1 := expr [@var_name2 := expr] ... ;
+
+SELECT @var_name1 := expr [@var_name2 := expr] ...;
+SELECT 字段名 INTO @var_name FROM 表名;
+
+#使用
+SELECT @var_name;
+```
+
+- 用户定义的变量无需对其进行声明或初始化，初始值为NULL
+
+
+
+#### 局部变量 —— `declare`
+
+![image-20240419004116678](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419004116678.png)
+
+```mysql
+create procedure p2()
+begin
+	declare stu_count into default 0;
+	select count(*) into stu_count from student;
+	select stu_count;
+end;
+
+call p2();
+```
+
+#### 参数
+
+![image-20240419004846818](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419004846818.png)
+
+```mysql
+#eg.1
+#判断成绩
+create procedure p4(in score int, out result varchar(10))
+begin
+	if score >= 85 then
+		set result := '优秀';
+	elseif score >= 60 then
+		set result := '及格';
+	else 
+		set result := '不及格';
+	end if;
+end;
+
+call p4(100, @result);
+select @result;
+
+#eg.2 
+#将两百分值换算成百分制
+create procedure p5(inout score double)
+begin
+	set score := score * 0.5;
+end;
+
+set @score = 150;
+call p5(score);
+select score;
 ```
 
 
 
-- 修改**基表**，同样也会影响视图的数据
+### 13.2.2 流程控制语句
+
+#### `if`
+
+```mysql
+if 条件1 then
+	...
+elseif 条件2 then
+	...
+else
+	...
+end if;
+```
+
+#### `case`
+
+![image-20240419005905948](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419005905948.png)
+
+- [610. 判断三角形](https://leetcode.cn/problems/triangle-judgement/)
+
+  ```mysql
+  SELECT 
+      x,
+      y,
+      z,
+      CASE
+          WHEN x + y > z AND x + z > y AND y + z > x THEN 'Yes'
+          ELSE 'No'
+      END AS 'triangle'
+  FROM
+      triangle
+  ;
+  ```
+
+#### `while`
+
+```mysql
+#eg.1
+#计算1-n的和
+create procedure p7(in n int) 
+begin
+	declare total int default 0;
+	while n>0 do
+		set total := total+n;
+		set n := n - 1;
+	end while;
+end;
+```
+
+#### `repeat`
+
+- 满足条件退出循环
+
+```mysql
+#语法
+repeat
+	...
+	until 条件
+end repeat;
+```
+
+#### `loop`
+
+![image-20240419011352880](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419011352880.png)
+
+```mysql
+#eg.1
+# 计算1-n中偶数的总和
+create procedure p9(in n int) 
+begin
+	declare total int default 0;
+	
+	sum: loop
+		if n <= 0 then 
+			leave sum;
+		end if;
+		if n % 2 = 1 then 
+			n := n - 1;
+			iterate sum; 
+		end if;
+		set total := total + n;
+		n := n - 1;
+	end loop sum;
+	
+end;
+```
+
+### 13.2.3 游标(光标）—— `cursor`
+
+![image-20240419012232080](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419012232080.png)
+
+```mysql
+#eg.1
+#将年龄小于uage的行插入到一个新表当中
+create procedure p11(in uage int)
+begin
+	#需要先声明变量再声明游标
+	declare uname varchar(100);
+	declare upro varchar(100);
+	declare u_cursor cursor for select name , profession from tb_user where age <=uage;
+
+	
+	drop table if exists tb_user_pro;
+	create table if not exists tb_user_pro(
+        id int primary key auto_increment,
+        name varchar(100),
+        profession varchar(100)
+   	);
+   	
+   	open u_cursor;
+   	while frue do
+   		fetch u_cursor into uname , upro;     #error:考虑判断游标里没有数据
+   		insert into tb_user_pro values (null, uname,upro);
+   	end while;
+   	close u_cursor;
+   
+end;
+```
+
+### 13.2.4 [条件处理程序](https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html)
+
+![image-20240419014225459](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419014225459.png)
+
+```mysql
+#eg.1
+#将年龄小于uage的行插入到一个新表当中
+#解决前一个例子的报错问题
+create procedure p11(in uage int)
+begin
+	#需要先声明变量再声明游标
+	declare uname varchar(100);
+	declare upro varchar(100);
+	declare u_cursor cursor for select name , profession from tb_user where age <=uage;
+	#用于退出循环
+	declare exit handler for SQLSTATE '02000' close u_cursor;  
+	#declare exit handler for not found close u_cursor;  
+	
+	drop table if exists tb_user_pro;
+	create table if not exists tb_user_pro(
+        id int primary key auto_increment,
+        name varchar(100),
+        profession varchar(100)
+   	);
+   	
+   	open u_cursor;
+   	while true do
+   		fetch u_cursor into uname ,upro;     #当游标没有数据时报错，被条件处理程序捕获。退出游标
+   		insert into tb_user_pro values (null, uname,upro);
+   	end while;
+   	close u_cursor;
+   
+end;
+```
+
+### 13.2.5 存储函数
+
+- 有返回值的存储过程，参数只能是IN类型（默认也是IN）
+
+![image-20240419015021889](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419015021889.png)
+
+```mysql
+#求1-n的总和
+create function func(n int) returns int deterministic
+begin 
+	declare total int default 0;
+	while n > 0 do
+		set total := total + n;
+		set n := n - 1;
+	end while;
+	
+	return total;
+end;
+
+#调用
+select func(10);
+```
+
+
 
 
 
@@ -1625,7 +1955,7 @@ for (int i = 0; i < row; i++) {
 
 # 16 SQL优化
 
-## `insert`优化
+## 16.1 `insert`优化
 
 1. ### 批量插入
 
@@ -1665,9 +1995,9 @@ load data local infile '/root/xx.log' into table 'xxx' fields terminated by ',' 
 
 
 
-## 主键优化
+## 16.2 主键优化
 
-### 页分裂——主键乱序插入
+### 16.2.1 页分裂——主键乱序插入
 
 ![image-20240418142944414](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418142944414.png)
 
@@ -1675,7 +2005,7 @@ load data local infile '/root/xx.log' into table 'xxx' fields terminated by ',' 
 
 ![image-20240418143207618](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418143207618.png)
 
-### 页合并——删除数据
+### 16.2.2 页合并——删除数据
 
 - `MERGE_THRESHOLD`：合并页的阈值，在创建表或者索引时可指定
 
@@ -1685,7 +2015,7 @@ load data local infile '/root/xx.log' into table 'xxx' fields terminated by ',' 
 
 
 
-### 主键的设计原则
+### 16.2.3 主键的设计原则
 
 1. 满足业务需求的情况下，尽量降低主键的长度。
 2. 插入数据时，尽量选择顺序插入，选择使用`AUTO_INCREMENT`自增主键。
@@ -1694,7 +2024,7 @@ load data local infile '/root/xx.log' into table 'xxx' fields terminated by ',' 
 
 
 
-## `order by`优化
+## 16.3 `order by`优化
 
 > **<u>Using filesort</u>**：通过表的索引或全表扫描，读取满足条件的数据行，然后在排序缓冲区sort。buffer中完成排序操作，所有不是通过索引直接返回排序结果的排序都叫FileSort排序。
 >
@@ -1722,29 +2052,38 @@ load data local infile '/root/xx.log' into table 'xxx' fields terminated by ',' 
 
    
 
-## `group by` 优化
+## 16.4 `group by` 优化
+
+- 通过索引进行优化，分组时索引的使用也满足最左前缀法则
 
 
 
+## 16.5 `limit` 优化 
 
+- 通过覆盖索引 + 子查询优化
 
+![image-20240418173924025](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418173924025.png)
 
+```mysql
+explain select * from tb_sku t, 
+(select id from tb_sku order by id limit 2000000, 10) a
+where t.id = a.id;
+```
 
+## 16.6 `count`优化
 
+### `count(常量)`、`count(字段名/主键)`、`count(*)`的区别
 
+- `count(常量)`、`count(*)`表示查询符合条件的行数
+- `count(字段名)`查询符合条件的列的值不为NULL的行数
 
+![image-20240418182821200](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418182821200.png)
 
+## 16.7 `update`优化
 
+事务中，根据索引进行update使用的是行锁，反之则用的是表级锁，行锁升级为表锁会降低并发性
 
-
-
-
-
-
-
-
-
-
+![image-20240418183308449](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418183308449.png)
 
 
 
