@@ -2,6 +2,8 @@
 
 
 
+# ==[MySQL参考手册](https://dev.mysql.com/doc/refman/5.7/en/preface.html)==
+
 # 1 预备知识
 
 ## 1.1 安装
@@ -651,6 +653,12 @@ select distinct [列名] from [table_name]
  #多个排序，当第一个相同时，再通过第二个排...
  ```
 
+> ==例题：[586. 订单最多的客户](https://leetcode.cn/problems/customer-placing-the-largest-number-of-orders/)==
+>
+> ```mysql
+> select customer_number from Orders group by customer_number order by count(*) desc limit 1;
+> ```
+
 
 
 ### 7.2.5 筛选分页结果 —— `limit` 
@@ -712,17 +720,13 @@ insert into [table_name] select [column] from [table_name] ...;
 
 
 
-# 7.7 聚合函数
-
-- `count`
-- `sum`
-- `avg` 
-- `max` / `min`
+# 7.7 分组查询&聚合函数
 
 ## 7.7.1 `group by` 分组查询 
 
 - 分组之后便于聚合统计
 - group by 按照后一列的值进行分组，分成不同行
+- 可以将多列联合分组
 
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240117175209396.png" alt="image-20240117175209396" style="zoom: 50%;" />
 
@@ -758,6 +762,28 @@ HAVING COUNT(*) > 1;
 ```
 
 这个查询首先筛选出薪资大于 50000 的员工，然后按部门分组。最后，它仅保留至少有两名员工的部门，并计算每个部门的员工总数。
+
+### `count`
+
+### `sum`
+
+### `avg` 
+
+### `max` / `min`
+
+- [511. 游戏玩法分析 I](https://leetcode.cn/problems/game-play-analysis-i/)
+
+```mysql
+select player_id, min(event_date) as first_login from Activity group by player_id ;
+```
+
+- [619. 只出现一次的最大数字](https://leetcode.cn/problems/biggest-single-number/)
+
+```mysql
+select max(t.num) as num from (select num from MyNumbers group by num having count(*) = 1) as t;
+```
+
+
 
 # 8 复合查询
 
@@ -959,6 +985,16 @@ select 字段 from table1 left join table2 on 链接条件;
 
 ![image-20240121172034992](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240121172034992.png)[^9]
 
+> ==例题：[577. 员工奖金](https://leetcode.cn/problems/employee-bonus/)==
+>
+> ```mysql
+> #注意判断空不能用   = null
+> #需要用          is null
+> select name, bonus from Employee left join Bonus on Employee.empid = Bonus.empid where bonus is null or bonus < 1000;
+> ```
+
+
+
 ### 10.2.2 右外连接
 
 ```mysql
@@ -969,24 +1005,28 @@ select 字段 from table1 right join table2 on 连接条件;
 
 # 11 索引
 
+- ## 索引的设计原则
+
+![image-20240418135919013](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418135919013.png)
+
 ##  11.1 存储
 
 - 在linux中，表结构在磁盘中就是文件 ，找到文件就是定位到对应的扇区（磁头->柱面->扇区）
 - Mysql进行IO的基本单位为16KB（page）
-- 页目录
 -  B+树：叶子节点保留数据，非叶子节点不要数 据，只保存目录项，叶子节点全部用双向链表连起来
 
-
+ ![image-20240418142614627](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418142614627.png)
 
 ## 11.2 聚簇索引和非聚簇索引
 
 - `innoDB`和`MyISAM`都采用B+树
-
 - `MyISAM`最大的特点是将索引page和数据page分离，也就是叶子节点没有数据，而存储数据地址   ，称为非聚簇索引
-- `innoDB`叶子节点存放数据，称为聚簇索引
+
+### 11.2.1 聚簇索引与二级索引
+
+- `innoDB`叶子节点存放数据，称为聚簇索引， 二级索引叶子节点存放对应的主键
+- 如果该表没有主键索引或者唯一索引，该表会在每一列生成一个隐藏的`row_id`作为聚集索引
 - 一张表可能对应多个B+树
-
-
 
 ## 11.3 索引操作
 
@@ -1040,7 +1080,9 @@ create index index_name on 表名(列名);
 
 
 
-### 11.3.4 复合索引
+### 11.3.4 复合索引(联合索引)
+
+- 尽量使用联合索引，而非单列索引
 
 ![image-20240203002842879](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240203002842879.png)
 
@@ -1064,6 +1106,26 @@ create table articles (
 ```
 
 
+
+### 11.3.6 前缀索引
+
+```mysql
+create index idx_name on table_name(cloumn(n));
+```
+
+- 查询选择性：字符串前n个不重复的比值，越大性能越高
+
+```mysql
+select count(distinct email)/count(*) from tb_user;
+select count(distinct substring(email, 1, 5)) / count(*) from tb_user;
+```
+
+- 查询步骤
+  - 通过前缀索引找到id值
+  - 通过id值找到一行的内容
+  - 将改行该列的内容与where后面的条件比对，如果不相同，则通过叶子节点的链表往后找，相同则返回
+
+![image-20240418134853351](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418134853351.png)
 
 ## 11.4 性能分析
 
@@ -1206,7 +1268,7 @@ explain select ...;
 
   ![image-20240416224928613](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240416224928613.png)
 
-
+![image-20240418133402283](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418133402283.png)
 
 # 12 事务 
 
@@ -1561,7 +1623,108 @@ for (int i = 0; i < row; i++) {
 
 
 
-![image-20240212135852934](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240212135852934.png)
+# 16 SQL优化
+
+## `insert`优化
+
+1. ### 批量插入
+
+```mysql
+insert into tb_test values(1,'Tom'),(2,'Cat'),(3,"Jerry');
+```
+
+2. ### 手动事务提交
+
+```mysql
+start transaction;
+insert into tb_test values(1, 'Tom'),(2,'Cat'),(3,'Jerry');
+insert into tb_test values(4,'Tom'),(5,'Cat'),(6,'Jerry');
+insert into tb_test values(7,'Tom'),(8,'Cat'),(9,'Jerry');
+commit;
+```
+
+3. ### 主键顺序插入(主键优化)
+
+> 主键乱序插入:8 1  9 21 88 24 15 89 5 7 3
+>
+> 主键顺序插入:1  2 3 4 5 7 8 9 15 21 88 89
+
+4. ### 大批量插入数据
+
+![image-20240418141859451](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418141859451.png)
+
+```mysql
+mysql --local-infile -u root -p
+ 
+select @@local_infile
+
+set global local_infile = 1;
+
+load data local infile '/root/xx.log' into table 'xxx' fields terminated by ',' lines terminated by '\n';
+```
+
+
+
+## 主键优化
+
+### 页分裂——主键乱序插入
+
+![image-20240418142944414](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418142944414.png)
+
+此时插入id为50的行，发生页分裂，开辟一个新的数据页3#，将1#号数据页的50%移动到3#，最后链接数据页
+
+![image-20240418143207618](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418143207618.png)
+
+### 页合并——删除数据
+
+- `MERGE_THRESHOLD`：合并页的阈值，在创建表或者索引时可指定
+
+![image-20240418143342522](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418143342522.png)
+
+![image-20240418143357909](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418143357909.png)
+
+
+
+### 主键的设计原则
+
+1. 满足业务需求的情况下，尽量降低主键的长度。
+2. 插入数据时，尽量选择顺序插入，选择使用`AUTO_INCREMENT`自增主键。
+3. 尽量不要使用UUID做主键或者是其他自然主键，如身份证号。
+4. 业务操作时，避免对主键的修改。
+
+
+
+## `order by`优化
+
+> **<u>Using filesort</u>**：通过表的索引或全表扫描，读取满足条件的数据行，然后在排序缓冲区sort。buffer中完成排序操作，所有不是通过索引直接返回排序结果的排序都叫FileSort排序。
+>
+> **<u>Using index</u>**：通过有序索引顺序扫描直接返回有序数据，这种情况即为using index，不需要额外排序，操作效率高。
+
+
+
+1. 对于一个默认升序的联合索引，如果在order by时一个升序一个降序，将会走using index 和 using filesort
+
+![image-20240418150550797](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418150550797.png)
+
+- `show index from xxx`中的`Collation`列为A(asc)表示升序，D(desc)表示倒序，可以在建立索引时指定：
+
+  ```mysql
+  create index idx_user_age_pho_ad on tb_user(age asc, phone desc);
+  ```
+
+2. 尽量使用覆盖索引，不然都会使用using filesort
+
+3. 如果不可避免的出现filesort，大数据量排序时，可以适当增大排序缓冲区大小 `sort_buffer_size`(默认256k)。
+
+   ```mysql
+   show variables like 'sort_buffer_size';
+   ```
+
+   
+
+## `group by` 优化
+
+
 
 
 
