@@ -753,7 +753,7 @@ select department_no, avg(salary) department_avg_salary from employee group by d
 
 这里有一个简单的示例来说明它们的用法：
 
-```
+```mysql
 sqlCopy codeSELECT department, COUNT(*) as total
 FROM employees
 WHERE salary > 50000
@@ -891,7 +891,7 @@ select * from dept t1, (select deptno, count(*) dept_num from emp group by deptn
 
 
 
-# 9 内置函数
+# 9 函数
 
 ## 9.1 日期函数
 
@@ -951,6 +951,25 @@ select concat('姓名: ', name, '总分：', chinese + english, '语文成绩：
 | `ifnull(x, y)` | `if x ? x : y`                              |
 
 
+
+## [9.5 窗口函数](https://dev.mysql.com/doc/refman/8.0/en/window-functions.html)
+
+- [178. 分数排名](https://leetcode.cn/problems/rank-scores/)
+
+```mysql
+SELECT
+  S.score,
+  DENSE_RANK() OVER (
+    ORDER BY
+      S.score DESC
+  ) AS 'rank'
+FROM
+  Scores S;
+```
+
+
+
+![image-20240419171446101](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419171446101.png)
 
 # 10 表的内外链接
 
@@ -1793,9 +1812,24 @@ end;
 select func(10);
 ```
 
+## 13.3 触发器
 
+![image-20240419170108399](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419170108399.png)
 
+```mysql
+#创建
+CREATE TRIGGER trigger_name
+BEFORE/AFTER INSERT/UPDATE/DELETE ON tbl_name FOR EACH ROW #行级触发器
+BEGIN
+	...
+END;
 
+#查看
+SHOW TRIGGERS ;
+
+# 删除
+DROP TRIGGER [schema_name.]trigger_name; #如果没有指定schema_name，默认为当前数据库。
+```
 
 
 
@@ -2084,6 +2118,98 @@ where t.id = a.id;
 事务中，根据索引进行update使用的是行锁，反之则用的是表级锁，行锁升级为表锁会降低并发性
 
 ![image-20240418183308449](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240418183308449.png)
+
+
+
+# 17 锁
+
+## 17.1 全局锁
+
+- 备份表，不加锁的情况：
+
+![image-20240419220227928](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419220227928.png)
+
+- 加锁的情况
+
+![](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419220414399.png)
+
+```mysql
+flush tables with read lock;	#加锁
+
+
+unlock tables;		#解锁
+```
+
+```shell
+#备份
+mysqldump -uroot -p123123 itcase > itcast.sql
+```
+
+- 在InnoDB引擎中，我们可以在备份时加上参数`--single-transaction` 参数来完成不加锁的一致性数据备份。(底层使用快照读实现)
+
+```shell
+mysqldump --single-transaction -uroot -p123123 itcase > itcast.sql
+```
+
+## 17.2 表级锁
+
+### 17.2.1 表锁
+
+1. 表共享读锁（read lock）：共享读，不能写
+2. 表独占写锁（write lock）：只有自己能读写
+
+```mysql
+#加锁
+lock tables xxx read;
+lock tables xxx write;
+
+#解锁
+unlock tables;  #或者客户端断开连接
+```
+
+![image-20240419222447147](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419222447147.png)
+
+### 17.2.2 元数据锁(meta data lock, MDL)
+
+![image-20240419223003894](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419223003894.png)
+
+- 共享锁与排他锁互斥的情况
+
+![1211](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419223711258.png)
+
+```mysql
+#查看元数据锁
+select object_type,object_schema,object_name,lock_type,lock_duration from performance_schema.metadata_locks;
+```
+
+### 17.2.3 意向锁
+
+1. 意向共享锁（IS)∶
+   1. 由语句`select ... lock in share mode`添加。
+   2. 与表锁共享锁( read）兼容，与表锁排它锁（ write)互斥。
+2. 意向排他锁（IX)︰
+   1. 由`insert、update、delete、select ... for update`添加。
+   2. 与表锁共享锁(read）及排它锁(write）都互斥。意向锁之间不会互斥。
+
+为了避免DML在执行时，**加的行锁与表锁的冲突**，在InnoDB中引入了意向锁，使得表锁不用检查每行数据是否加锁，使用意向锁来减少表锁的检查。
+
+- 线程A在update时加行锁并且加上意向锁，此时线程B加表锁会被阻塞
+
+![image-20240419225055119](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419225055119.png)
+
+- 查看意向锁及行锁的加锁情况
+
+  ```mysql
+  select object_schema,object_name,index_name, lock_type,lock_mode,lock_data from performance_schema.data_locks;
+  ```
+
+  
+
+
+
+
+
+
 
 
 
