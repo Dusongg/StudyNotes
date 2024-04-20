@@ -1404,8 +1404,6 @@ commit;
   
   - 串行化(serializable)：在每个读的数据行上加上共享锁，强制事务排序，使之不可能互相冲突（隔离级别最高）
 
-### 12.5.2 如何解决幻读问题
-
 
 
 ## 12.6 查看与设置隔离级别
@@ -2203,7 +2201,117 @@ select object_type,object_schema,object_name,lock_type,lock_duration from perfor
   select object_schema,object_name,index_name, lock_type,lock_mode,lock_data from performance_schema.data_locks;
   ```
 
-  
+
+## 17.3 行级锁
+
+![image-20240420141104363](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420141104363.png)
+
+### 17.3.1 行锁
+
+默认情况下，InnoDB在 REPEATABLEREAD事务隔离级别运行，InnoDB使用**<u>next-key锁</u>**进行搜索和索引扫描，以防止幻读。
+
+1. 针对唯一索引进行检索时，对已存在的记录进行等值匹配时，将会自动优化为行锁。
+2. InnoDB的行锁是针对于索引加的锁，<u>**不通过索引条件检索数据，那么InnoDB将对表中的所有记录加锁，此时就会升级为表锁**</u>
+
+![image-20240420141233237](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420141233237.png)![image-20240420141325582](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420141325582.png)
+
+
+
+### 17.3.2 间隙锁&临键锁
+
+1. 索引上的等值查询(唯一索引)，给不存在的记录加锁时,优化为间隙锁。
+
+![image-20240420142953689](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420142953689.png)
+
+2. 索引上的等值查询(普通索引)，向右遍历时最后一个值不满足查询需求时，**next-key lock退化为间隙锁**
+
+- 因为普通索引不唯一，防止其他事务在间隙中插入相同的索引值，需要加上间隙锁
+
+![image-20240420143632829](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420143632829.png)
+
+![image-20240420144043565](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420144043565.png)
+
+3. 索引上的范围查询(唯一索引)--会访问到不满足条件的第一个值为止。
+
+```mysql
+begin;
+
+select * from stu where id >= 10 lock in share mod;
+
+end;
+```
+
+
+
+- 间隙锁唯一目的是防止其他事务插入间隙。间隙锁可以共存，一个事务采用的间隙锁不会阻止另一个事务在同一间隙上采用间隙锁。
+
+
+
+
+
+
+
+# 18 InnoDB存储引擎
+
+![image-20240420150022874](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420150022874.png)
+
+## 18.1 内存结构
+
+1. Buffer Pool
+
+![image-20240420150311906](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420150311906.png)
+
+2. Change Buffer
+
+![image-20240420150558680](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420150558680.png)
+
+3. 自适应哈希
+
+![image-20240420150850182](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420150850182.png)
+
+4. Log Buffer
+
+![image-20240420151031587](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420151031587.png)
+
+
+
+## 18.2 磁盘结构
+
+![image-20240420151412994](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420151412994.png)
+
+![image-20240420151712507](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420151712507.png)
+
+![image-20240420151858718](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420151858718.png)
+
+
+
+## 18.3 后台线程
+
+![image-20240420152156565](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420152156565.png)
+
+
+
+## 18.4 事务原理
+
+![image-20240420155358682](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420155358682.png)
+
+### 18.4.1 redo log —— 一致性
+
+![image-20240420160121214](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420160121214.png)
+
+### 18.4.2 undo log —— 原子性&MVCC
+
+![image-20240420160730528](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420160730528.png)
+
+## 18.5 MVCC
+
+### 基本概念
+
+![image-20240420161702220](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420161702220.png)
+
+### 隐藏字段
+
+![image-20240420161859851](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420161859851.png)
 
 
 
