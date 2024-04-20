@@ -1297,9 +1297,9 @@ explain select ...;
 - 事务是一组DML语句，这些语句在逻辑上具有相关性，要么全部成功，要么全部失败
 - 一个完整的事务满足以下四个属性
   - 原子性(Atomicity)：对于所有操作保证原子性，一次性全部完成
-  - 一致性(Consistency)：写入数据必须完全符合所有的预设规则，保证数据的精确度，可预期
-  - 隔离性(Isolation)：未提交、读提交、可重复读、串行化？
-  - 持久性(Durability)：保证数据的修改是永久的
+  - 一致性(Consistency)：写入数据必须完全符合所有的预设规则，保证数据的精确度，可预期 —— redo log + undo log
+  - 隔离性(Isolation)：未提交、读提交、可重复读、串行化？ —— undo log + readView + 隐藏字段  + 锁
+  - 持久性(Durability)：保证数据的修改是永久的 —— redo log
 
 ### 哪些存储引擎支持事务？
 
@@ -1426,44 +1426,10 @@ set [session|global] transaction isolation level {read uncommitted | read commit
 #设置完全局之后，重新登录之后，局部和默认的隔离级别通过全局初始化
 ```
 
-
-
-## 12.7 理解RC与RR —— MVCC机制
-
-多版本并发控制（MVCC）是一种用来解决读写冲突的无锁并发控制
-
-- 每个事务都有一个事务ID，根据事务ID决定事务的先后顺序
-
- 
-
-- 隐藏字段
-
-  ![image-20240206001645601](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240206001645601.png)
-
-- undo log
-
-MySQL以服务进程的方式在内存中运行，一些机制例如：索引、事务、隔离性、日志等都是在内存中完成的，即在MySQL内部的相关缓冲区中，保存相关数据据，在合适时间写入磁盘中
-
- 先简单理解成一个内存缓冲区，用来保存日志数据
-
-
-
-- Read View
-
-Read View本质是用来进行可见性判断的，当某个事务执行快照读时，会对该记录创建一个`Read View`读视图
-
-- 事务中快照读的结果非常依赖该事务首次出现快照读的地方，决定了该事务后续快照读结果的能力
-
-
-
-
-
 ### RC与RR的本质区别
 
 - RC级别下，事务中每次快照读都会新生成一个Read View
 - RR级别下，同一个事务下的第一次快照才会创建Read View
-
-
 
 # 13 视图/存储过程/触发器
 
@@ -1811,6 +1777,9 @@ select func(10);
 ```
 
 ## 13.3 触发器
+
+- 行级触发：影响多少行，触发多少次
+- 语句级触发：一次sql之触发一次
 
 ![image-20240419170108399](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240419170108399.png)
 
@@ -2313,9 +2282,73 @@ end;
 
 ![image-20240420161859851](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420161859851.png)
 
+- 查看idb文件信息
+
+  ```bash
+  idb2sdi xxx.idb
+  ```
+
+  
+
+### undo log
+
+回滚日志，在insert、update、delete的时候产生的便于数据回滚的日志。
+
+- `insert`的时候，产生的undo log日志只在回滚时需要，在事务提交后，可被立即删除。
+
+- `update`、`delete`的时候，产生的undo log日志不仅在回滚时需要，在快照读时也需要，不会立即被删除。
+
+![image-20240420163430922](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420163430922.png)
+
+### read view
+
+![image-20240420163603169](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420163603169.png)
+
+![image-20240420163911405](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420163911405.png)
+
+- read view 生成的时机：
+
+  - RC：每一次执行快照读都会生成
+
+  ![image-20240420164924369](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420164924369.png)
+
+  - RR：只在第一次快照读的时候生成，后面快照读复用
+
+    ![image-20240420165149924](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420165149924.png)
 
 
 
+# 19 MySQL管理
+
+## 19.1 系统数据库
+
+ ![image-20240420212450987](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420212450987.png)
+
+## 19.2 常用工具
+
+1. `mysql`
+
+![image-20240420212629812](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420212629812.png)
+
+2. `mysqladmin`
+
+![image-20240420212806164](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420212806164.png)
+
+3. `mysqlbinlog`
+
+![image-20240420213406836](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420213406836.png)
+
+4. `mysqlshow`
+
+![image-20240420213432780](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420213432780.png)
+
+5. `mysqldump`
+
+![image-20240420221353746](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420221353746.png)
+
+6. `mysqllimport` / `source`
+
+![image-20240420222334209](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240420222334209.png)
 
 
 
