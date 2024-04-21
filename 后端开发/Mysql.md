@@ -769,6 +769,10 @@ HAVING COUNT(*) > 1;
 
 ### `avg` 
 
+保留小数点后2位`round(avg(xxx), 2)`
+
+- 
+
 ### `max` / `min`
 
 - [511. 游戏玩法分析 I](https://leetcode.cn/problems/game-play-analysis-i/)
@@ -930,14 +934,15 @@ select concat('姓名: ', name, '总分：', chinese + english, '语文成绩：
 
  ## 9.3 数学函数
 
-| `abs()`                            |                          |
-| ---------------------------------- | ------------------------ |
-| `bin(), hex()`                     | 十进制转二进制/十六进制  |
-| `conv(number, from_base, to_base)` | 将任意数进行进制转换     |
-| `ceiling(), floor()`               | 上取整/下取整            |
-| `rand()`                           | 返回随机浮点数[0.0, 1.0] |
-| `mod(number, denominator)`         | 取模求余                 |
-| `format(number, n)`                | 对浮点数保留n位小数      |
+| `abs()`                            |                              |
+| ---------------------------------- | ---------------------------- |
+| `bin(), hex()`                     | 十进制转二进制/十六进制      |
+| `conv(number, from_base, to_base)` | 将任意数进行进制转换         |
+| `ceiling(), floor()`               | 上取整/下取整                |
+| `rand()`                           | 返回随机浮点数[0.0, 1.0]     |
+| `mod(number, denominator)`         | 取模求余                     |
+| `format(number, n)`                | 对浮点数保留n位小数，用0占位 |
+| `round(number, n)`                 | 对浮点数保留n位小数，不占位  |
 
 
 
