@@ -1,4 +1,8 @@
-# 1 初始工作
+# ==[Redis参考手册](https://redis.io/docs/latest/commands/)==
+
+# 1 基础认识
+
+## 1.1 安装配置
 
 - 安装：`sudo apt install redis`
 
@@ -24,7 +28,7 @@
 
 - 退出：`quit` 或 `ctrl + d`
 
-# 2 通用命令
+## 1.2 通用命令
 
 - 类型
   - key:字符串
@@ -61,13 +65,35 @@ EXPIRE key [seconds]
 PEXPIRE key [millisecond]
 ```
 
-6. `ttl`：(time to live)
+6. `ttl`：(time to live)获取key的过期时间
 
-## 2.1 全局命令
+```
+TTL key   #返回-2表示key已经删除了
+```
 
-全局命令：能够搭配任意一个数据结构使用的命令
+- ==过期策略==
 
-1. [`keys`](https://redis.io/docs/latest/commands/keys/)
+定期删除 与 惰性删除 相结合
+
+7. `type` : 查看key对应的value的值
+
+```redis
+redis> SET key1 "value"
+"OK"
+redis> LPUSH key2 "value"
+(integer) 1
+redis> SADD key3 "value"
+(integer) 1
+redis> TYPE key1
+"string"
+redis> TYPE key2
+"list"
+redis> TYPE key3
+"set"
+redis> 
+```
+
+8. [`keys`](https://redis.io/docs/latest/commands/keys/)
 
 ```
 KEYS pattern
@@ -77,7 +103,61 @@ KEYS pattern
 
   ![image-20240421224000208](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240421224000208.png)
 
+9. `flushall`：清除redis上的所有键值对
 
+## 1.3 数据类型
+
+### 1.3.1 数据结构与内部编码
+
+- raw：原始字符串（C语言中的字符数组）
+
+- embstr：对于短字符串的优化
+- ziplist：对于键值对少的时候，通过压缩列表进行优化
+- quicklist：从redis3.2开始用quicklist实现list
+- skiplist：跳表
+
+![image-20240422011248940](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240422011248940.png)
+
+- 查看实际编码方式
+
+  ```redis
+  OBJECT encoding key
+  ```
+
+### string
+
+1. `set`
+
+```redis
+SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]
+```
+
+![image-20240422020234175](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240422020234175.png)
+
+
+
+### hash
+
+
+
+### list
+
+
+
+### set
+
+
+
+### zset
+
+## 1.4 单线程模型
+
+redis虽然是单线程模型，为什么效率却这么高
+
+1. 访问内存，MySQL则多是访问硬盘
+2. 核心功能简单
+3. 单线程模型，避免了多线程带来的开销
+4. 底层使用epoll
 
 
 
