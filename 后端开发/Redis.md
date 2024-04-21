@@ -23,3 +23,63 @@
   ```
 
 - 退出：`quit` 或 `ctrl + d`
+
+# 2 通用命令
+
+- 类型
+  - key:字符串
+  - value:字符串、哈希表、列表、集合...
+
+1. `get`
+
+```
+GET key
+```
+
+2. `set` 
+
+```
+SET key value
+```
+
+3. `exists`
+
+```
+EXISTS key [key ...]	#判断多个key，返回key存在  的个数
+```
+
+4. `del`
+
+```
+DEL key [key ...] #返回删除key的个数
+```
+
+5. `expire`：设置过期时间
+
+```
+EXPIRE key [seconds]
+PEXPIRE key [millisecond]
+```
+
+6. `ttl`：(time to live)
+
+## 2.1 全局命令
+
+全局命令：能够搭配任意一个数据结构使用的命令
+
+1. [`keys`](https://redis.io/docs/latest/commands/keys/)
+
+```
+KEYS pattern
+```
+
+- pattern
+
+  ![image-20240421224000208](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240421224000208.png)
+
+
+
+
+
+
+
