@@ -24,6 +24,8 @@
 
   ```bash
   redis-cli
+  
+  #--raw 将二进制编码
   ```
 
 - 退出：`quit` 或 `ctrl + d`
@@ -134,7 +136,33 @@ SET key value [NX | XX] [GET] [EX seconds | PX milliseconds | EXAT unix-time-sec
 
 ![image-20240422020234175](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240422020234175.png)
 
+2. `get`
 
+get只能查询字符串类型的value
+
+3. `mget` / `mset`
+
+设置/获取多组键值对
+
+4. `setnx` / `setex` / `psetex`
+
+不存在则设置/另外设置过期时间（单位s）/（单位ms）
+
+5. ```redis
+   #将value视为整数，对其+-
+   incr		
+   incrby
+   decr
+   decrby
+   incrbyfloat		#前面四个只能算整数，incrbyfloat可以算浮点数
+   ```
+
+6. | 函数       | 例子                        | 效果                                                  |
+   | ---------- | --------------------------- | ----------------------------------------------------- |
+   | `append`   | `append key value`          | 追加fvalue                                            |
+   | `getrange` | `getrange key start end`    | 截取value的[start, end]区间部分，负数下标表示倒数     |
+   | `setrange` | `setrange key offset value` | offset表示从第几个开始                                |
+   | `strlen`   | `strlen key`                | 获取value的长度（字符为单位），若不是string类型则报错 |
 
 ### hash
 
