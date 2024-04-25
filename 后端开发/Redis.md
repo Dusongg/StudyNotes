@@ -2,16 +2,30 @@
 
 # 1 基础认识
 
+- NoSQL与SQL
+
+  ![image-20240425234137088](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20240425234137088.png)
+
+- 特征
+
+![image-20240425234614363](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20240425234614363.png)
+
 ## 1.1 安装配置
 
 - 安装：`sudo apt install redis`
 
-- 配置文件
+- 配置文件`etc/redis/redis.conf`
 
-  ```
+  ```properties
   bind 0.0.0.0 ::1    #将本地环回改为任意ip
   
+  daemonize yes #守护进程启动
+  
+  requirepass 123123 #设置密码为123123
+  
   protected-mode no   #开启后其他主机才能访问
+  
+  logfile "xxx.log"  #开启日志，并记录到xxx.log中
   ```
 
   配置完后重启服务器：`service redis-sever restart`
@@ -31,6 +45,12 @@
 - 退出：`quit` 或 `ctrl + d`
 
 ## 1.2 通用命令
+
+```bash
+help @generic #查看通用命令文档 
+```
+
+
 
 - 类型
   - key:字符串
