@@ -4,11 +4,11 @@
 
 - NoSQL与SQL
 
-  ![image-20240425234137088](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20240425234137088.png)
+  ![image-20240425234137088](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240425234137088.png)
 
 - 特征
 
-![image-20240425234614363](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20240425234614363.png)
+![image-20240425234614363](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240425234614363.png)
 
 ## 1.1 安装配置
 
@@ -184,17 +184,31 @@ get只能查询字符串类型的value
    | `setrange` | `setrange key offset value` | offset表示从第几个开始                                |
    | `strlen`   | `strlen key`                | 获取value的长度（字符为单位），若不是string类型则报错 |
 
+### key的结构
+
+- 让redis像mysql一样存储
+- key：`数据库:表`
+- value：`{字段:值, 字段:值...}`
+
+![image-20240426144736318](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240426144736318.png)
+
 ### hash
 
-
+![image-20240426145202610](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240426145202610.png)
 
 ### list
 
-
+![image-20240426150022647](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240426150022647.png)
 
 ### set
 
+![image-20240426151000576](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240426151000576.png)
 
+### sorted_set
+
+- 默认按score升序排列，在`Z`后面加上`REV`倒序排列
+
+![image-20240426151322606](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240426151322606.png)
 
 ### zset
 

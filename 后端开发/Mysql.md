@@ -2359,6 +2359,12 @@ end;
 
 
 
+# 20 其他
+
+![image-20240426211336081](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240426211336081.png)
+
+
+
 
 
 [^8]: 注意左模糊匹配造成索引失效
