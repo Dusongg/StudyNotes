@@ -590,3 +590,40 @@ cppCopy code[[deprecated("use newFunction instead")]] void oldFunction() {
 ```
 
 这种语法是C++11引入的，并在后续的标准中逐渐增强和扩展，用于提供更多的编译器和标准库特性。
+
+
+
+# 16 [optional](https://zh.cppreference.com/w/cpp/utility/optional)
+
+![image-20240427223349370](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240427223349370.png)
+
+```cpp
+#include <iostream>
+#include <optional>
+#include <string>
+ 
+// optional 可用作可能失败的工厂的返回类型
+std::optional<std::string> create(bool b)
+{
+    if (b)
+        return "Godzilla";
+    return {};
+}
+ 
+// 能用 std::nullopt 创建任何（空的）std::optional
+auto create2(bool b)
+{
+    return b ? std::optional<std::string>{"Godzilla"} : std::nullopt;
+}
+ 
+int main()
+{
+    std::cout << "create(false) 返回 "
+              << create(false).value_or("empty") << '\n';
+ 
+    // 返回 optional 的工厂函数可用作 while 和 if 的条件
+    if (auto str = create2(true))
+        std::cout << "create2(true) 返回 " << *str << '\n';
+}
+```
+

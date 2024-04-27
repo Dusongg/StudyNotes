@@ -125,7 +125,14 @@ KEYS pattern
 
   ![image-20240421224000208](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240421224000208.png)
 
-9. `flushall`：清除redis上的所有键值对
+9. `flushall`：清除所有数据库中的key
+9. `scan` ——渐进式遍历
+
+11. `select dbIndex` —— 切换数据库
+
+dbIndex范围为0-15
+
+12. 
 
 ## 1.3 数据类型
 
@@ -210,7 +217,7 @@ get只能查询字符串类型的value
 
 ![image-20240426151322606](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240426151322606.png)
 
-### zset
+
 
 ## 1.4 单线程模型
 
@@ -220,6 +227,20 @@ redis虽然是单线程模型，为什么效率却这么高
 2. 核心功能简单
 3. 单线程模型，避免了多线程带来的开销
 4. 底层使用epoll
+
+
+
+
+
+# 2 redis客户端
+
+- redis自定义应用层协议
+
+## 2.1 RESP协议（Redis serialization protocol）
+
+
+
+
 
 
 
