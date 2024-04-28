@@ -606,9 +606,11 @@ redis-cli --cluster reshard ip:port
 
 # 4 多级缓存
 
+![image-20240428232744878](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428232744878.png)
 
 
 
+##  4.1 JVM进程缓存
 
 
 
