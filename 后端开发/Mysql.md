@@ -313,6 +313,24 @@ drop table [表名]
 
 
 
+## 4.5 条件更改
+
+- 将来自美国、澳大利亚、英国供应商的税率设置为0.08，其他供应商税率设置为0.00。
+
+```mysql
+update Lineitem set tax = case
+    when Lineitem.suppkey in (
+    select suppkey from Lineitem, Supplier, Nation
+    where Lineitem.suppkey = Supplier.suppkey and Supplier.nationkey = Nation.nationkey and Nation.name in ('美国', '澳大利亚', '英国')
+    ) then 0.08
+    else 0.00
+    end;
+```
+
+
+
+
+
 # 5 数据类型
 
 ## 5.1 数值类型

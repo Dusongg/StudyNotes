@@ -2,6 +2,8 @@
 
 # 1 基础认识
 
+
+
 - NoSQL与SQL
 
   ![image-20240425234137088](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240425234137088.png)
@@ -469,15 +471,17 @@ try {
 
 # 3 分布式缓存 —— redis集群
 
+## 3.1 持久化
+
 - 单节点Redis的问题：1. 数据丢失  2. 并发能力  3. 存储能力  4. 故障恢复
 
-## 3.1 RDB持久化
+### 3.1.1 RDB
 
 ![image-20240427230804132](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240427230804132.png)
 
 ![image-20240427233636584](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240427233636584.png)
 
-## 3.2 RDB底层原理
+### 3.1.2 RDB底层原理
 
 ![image-20240427234336347](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240427234336347.png)
 
@@ -485,7 +489,7 @@ try {
 
 
 
-## 3.3 AOF持久化
+### 3.1.3 AOF持久化
 
 ![image-20240427235256612](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240427235256612.png)
 
@@ -499,5 +503,120 @@ try {
 
 
 
-## 3.4 AOF与RDB的对比
+### 3.1.4 AOF与RDB的对比
+
+![image-20240428200406918](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428200406918.png)
+
+
+
+##  3.2 Redis主从
+
+### 3.2.1 搭建主从集群
+
+（转Redis集群.md）
+
+### 3.2.2 数据同步原理
+
+1. 全量同步
+
+- <u>**id不同-  >  生成RDB做全量同步**</u>
+- **<u> id相同  ->  通过offset做增量同步</u>**
+
+![image-20240428202606843](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428202606843.png)
+
+![image-20240428202728682](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428202728682.png)
+
+
+
+2. 增量同步
+
+![11111](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428203155649.png)
+
+- ==如何优化主从集群同步==
+
+![image-20240428203425431](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428203425431.png)
+
+## 3.3 Redis哨兵
+
+![image-20240428205054062](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428205054062.png)
+
+#### Sentinel监控原理
+
+Sentinel基于心跳机制监测服务状态，每隔1秒向集群的每个实例发送ping命令
+
+==主观下线==：如果某sentinel节点发现某实例<u>未在规定时间响应</u>，则认为该实例主观下线。
+
+==客观下线==：若超过指定数量（quorum)的sentinel都认为该实例主观下线，则该实例客观下线。quorum值最好超过Sentinel实例数量的一半。
+
+#### 选择新的master
+
+![image-20240428205910199](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428205910199.png)
+
+#### 如何实现故障转移
+
+![image-20240428210025947](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428210025947.png)
+
+### 3.3.1 搭建哨兵集群
+
+（转Redis集群.md）
+
+###  3.3.2 Redis客户端状态感知
+
+ 
+
+## 3.4 Redis分片集群
+
+### 3.4.1 搭建分片集群
+
+（转Redis集群.md）
+
+![image-20240428223237874](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428223237874.png)
+
+###  3.4.2 散列插槽
+
+![image-20240428225102178](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428225102178.png)
+
+- 如何将同一类数据固定的保存在同一个Redis实例中
+
+![image-20240428225417930](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428225417930.png)
+
+### 3.4.3 集群伸缩
+
+- 创建新Redis，加入到集群中
+
+![image-20240428225728626](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428225728626.png)
+
+- 分配插槽
+
+```SH
+redis-cli --cluster reshard ip:port
+```
+
+### 3.4.4 故障转移
+
+1. 自动转移
+
+- 一个服务突然宕机，slave节点自动转移成master
+
+2. 手动转移
+
+![image-20240428231148079](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240428231148079.png)
+
+
+
+# 4 多级缓存
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
