@@ -612,13 +612,37 @@ redis-cli --cluster reshard ip:port
 
 ##  4.1 JVM进程缓存
 
+ 
+
+## 4.2 OpenResty
+
+![image-20240429231721675](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240429231721675.png)
+
+![image-20240429234315794](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240429234315794.png)
+
+1. 修改nginx.conf文件
+
+![image-20240429235323238](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240429235323238.png)
+
+2. 编写item.lua文件
+
+![image-20240429235435025](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240429235435025.png)
+
+- 获取请求参数
+
+![image-20240429235839151](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240429235839151.png)
+
+- 封装http请求，由OpenResty发送给后端
+
+![image-20240430001548649](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240430001548649.png)
+
+![image-20240430001527599](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240430001527599.png)
 
 
 
+- 使用common.lua，通过item.lua发送请求到后端
 
-
-
-
+![image-20240430003124528](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240430003124528.png)
 
 
 
