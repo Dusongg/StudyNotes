@@ -646,3 +646,71 @@ redis-cli --cluster reshard ip:port
 
 
 
+- Redis预热
+
+
+
+
+
+- OpenResty访问Redis缓存
+
+![image-20240501150214696](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240501150214696.png)
+
+
+
+- nginx本地缓存
+
+## 4.3 缓存同步
+
+![image-20240502121041244](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240502121041244.png)
+
+![](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240502121041244.png)
+
+### 4.3.1 Canel
+
+![image-20240502121331454](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240502121331454.png)
+
+![image-20240502220556739](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240502220556739.png)
+
+# 5 Redis实践优化
+
+## 5.1 key的设计
+
+![image-20240502221558171](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240502221558171.png)
+
+- 什么是Big Key
+
+单个key的value小于10KB
+
+对于集合类型的key，建议元素数量小于1000
+
+- Big Key的危害
+
+![image-20240502222457055](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240502222457055.png)
+
+- 删除Big Key
+
+![image-20240502223603980](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240502223603980.png)
+
+
+
+## 5.2 批处理优化
+
+- 批处理一次性执行太多任务会阻塞网络
+
+1. 原生的M操作
+2. Pipeline
+
+- pipeline的多个命令不具有原子性
+
+![image-20240503115012875](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240503115012875.png)
+
+### 5.2.1 集群模式下的批处理
+
+![image-20240503120412597](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240503120412597.png)
+
+## 5.3 服务端优化
+
+### 5.3.1 持久化配置
+
+![image-20240503223951603](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240503223951603.png)
