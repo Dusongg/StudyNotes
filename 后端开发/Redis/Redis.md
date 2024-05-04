@@ -714,3 +714,118 @@ redis-cli --cluster reshard ip:port
 ### 5.3.1 持久化配置
 
 ![image-20240503223951603](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240503223951603.png)
+
+### 5.3.2 慢查询
+
+- 该配置重启会恢复，要用就配置可以修改配置文件
+
+### ![image-20240503234718070](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20240503234718070.png)
+
+- 其他命令
+
+![image-20240504000236684](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504000236684.png)
+
+### 5.3.3 服务器安全配置
+
+![image-20240504135349697](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504135349697.png)
+
+- 安全配置
+
+1. Redis一定要设置密码
+2. 禁止线上使用下面命令: keys、flushall、flushdb、config set等命令。可以利用rename-command禁用。（在redis.conf文件下设置  `rename-command keys xxx123xxxdfsda`）
+3. bind:限制网卡，禁止外网网卡访问禁止线上使用下面命令（在redis.conf文件下设置）
+4. 开启防火墙开启防火墙
+5. 不要使用Root账户启动Redis
+6. 尽量不要使用默认端口
+
+### 5.3.4 内存配置
+
+![image-20240504140451848](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504140451848.png)
+
+- 查看内存使用情况的命令：
+  - `memory xxx`
+  - `info memory`
+
+![image-20240504142118346](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504142118346.png)
+
+- 两个查看客户端链接信息的命令
+  - `info client`
+  - `client list`
+
+### 5.3.5 集群相关问题
+
+- 集群的完整性问题
+
+![image-20240504143153125](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504143153125.png)
+
+- 集群的带宽问题
+
+![image-20240504143434456](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504143434456.png)
+
+- 集群带来的其他问题
+
+![image-20240504143734732](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504143734732.png)
+
+
+
+
+
+# 6 Redis底层原理
+
+## 6.1 底层数据结构
+
+### 6.1.1 SDS动态数组
+
+![image-20240504150555378](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504150555378.png)
+
+![image-20240504150612583](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504150612583.png)
+
+
+
+### 6.1.2 Intset
+
+![image-20240504150909130](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504150909130.png)
+
+- intset升级
+
+![image-20240504152243964](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504152243964.png)
+
+- 优点
+
+1. Redis会确保Intset中的元素唯一、有序
+2. 具备类型升级机制，可以节省内存空间
+3. 底层采用二分查找方式来查询
+
+### 6.1.3 Dict
+
+- Dict由三部分组成：
+
+![image-20240504153208343](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504153208343.png)
+
+![image-20240504153407129](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504153407129.png)
+
+- Dict的扩容机制
+
+![image-20240504163735702](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504163735702.png)
+
+- 渐进式rehash
+
+![ss](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504165301976.png)
+
+### 6.1.4 ZipList
+
+![image-20240504165810053](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504165810053.png)
+
+![image-20240504170359861](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504170359861.png)
+
+- encoding编码（小端）
+
+  - 字符串类型编码（00、01、10开头）
+
+    ![image-20240504171221619](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504171221619.png)
+
+  - 整数类型编码
+
+    ![](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504171933002.png)
+
+  
