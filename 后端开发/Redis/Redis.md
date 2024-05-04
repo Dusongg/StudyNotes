@@ -828,4 +828,32 @@ redis-cli --cluster reshard ip:port
 
     ![](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504171933002.png)
 
-  
+- 连锁更新问题
+
+![image-20240504230957638](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504230957638.png)
+
+### 6.1.5 QuickList
+
+- QuickList：限制ZipList的大小，解决内存分配的效率问题
+
+![image-20240504233808521](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504233808521.png)
+
+- 如何限制ZipList大小
+
+![image-20240504233856667](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504233856667.png)
+
+- QuickList节点压缩![image-20240504234159575](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504234159575.png)
+
+![image-20240504235503333](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504235503333.png)
+
+![image-20240504235643390](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504235643390.png)
+
+### 6.1.5 SkipList
+
+![image-20240505000844632](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240505000844632.png)
+
+- 底层结构
+
+![image-20240505001646311](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240505001646311.png)
+
+![image-20240505001031349](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240505001031349.png)
