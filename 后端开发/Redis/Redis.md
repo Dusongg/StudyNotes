@@ -834,6 +834,8 @@ redis-cli --cluster reshard ip:port
 
 ### 6.1.5 QuickList
 
+- QuickList = LinkList + ZipList
+
 - QuickList：限制ZipList的大小，解决内存分配的效率问题
 
 ![image-20240504233808521](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504233808521.png)
@@ -857,3 +859,95 @@ redis-cli --cluster reshard ip:port
 ![image-20240505001646311](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240505001646311.png)
 
 ![image-20240505001031349](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240505001031349.png)
+
+
+
+### 6.1.6 RedisObject
+
+![image-20240507103139134](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507103139134.png)
+
+- 11种编码格式
+
+![image-20240507103439069](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507103439069.png)
+
+- 数据类型对应的编码格式
+
+![image-20240507103733752](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507103733752.png)
+
+## 6.2 五种数据结构
+
+### 6.2.1 String
+
+- `raw`：其基本编码方式是RAW，基于简单动态字符串(SDS）实现，存储上限为512mb。
+- `embstr`：如果存储的SDS长度小于<u>44字节</u>，则会采用EMBSTR编码，此时object head与SDS是一段连续空间。申请内存时只需要调用一次内存分配函数，效率更高。
+- `int`：如果存储的字符串是整数值，并且大小在LONG_MAX范围内，则会采用INT编码:直接将数据保存在RedisObject的ptr指针位置（刚好8字节)，不再需要SDS了。
+
+![image-20240507105438669](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507105438669.png)
+
+### 6.2.2 List
+
+![image-20240507110929648](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507110929648.png)
+
+
+
+### 6.2.3 Set
+
+Set是Redis中的集合，不一定确保元素有序，可以满足元素唯一、查询效率要求极高。
+
+- `Dict`：为了查询效率和唯一性，set采用HT编码（Dict)。Dict中的key用来存储元素, value统一为null。
+
+- `IIntSet`：当存储的所有数据都是整数，并且元素数量不超过`set-max-intset-entries`时，Set会采用IntSet编码，以节省内存。
+
+![image-20240507112417630](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507112417630.png)
+
+- 插入时类型转换
+
+![image-20240507112431813](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507112431813.png)
+
+### 6.2.4 ZSet
+
+zset底层数据结构必须满足键值存储、键必须唯一、可排序这几个需求
+
+- SkipList:可以排序，并且可以同时存储score和ele值（ member)
+- HT ( Dict):可以键值存储，并且可以根据key找value
+
+![image-20240507153935285](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507153935285.png)
+
+- 当元素不多时，使用ZipList编码
+
+![image-20240507154502329](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507154502329.png)
+
+![image-20240507154916702](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507154916702.png)
+
+### 6.2.5 Hash
+
+![image-20240507155424965](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507155424965.png)
+
+## 6.3 Redis网络模型
+
+### 6.3.1 selecct
+
+![image-20240507203420468](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507203420468.png)
+
+
+
+### 6.3.2 poll
+
+![image-20240507203831453](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507203831453.png)
+
+
+
+### 6.3.3 epoll
+
+![image-20240507205127392](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507205127392.png)
+
+
+
+### 6.3.4 Redis网络模型
+
+单线程？多线程？ 
+
+![image-20240507212223799](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507212223799.png)
+
+![image-20240507222739878](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507222739878.png)
+
