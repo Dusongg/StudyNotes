@@ -951,3 +951,47 @@ zset底层数据结构必须满足键值存储、键必须唯一、可排序这�
 
 ![image-20240507222739878](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507222739878.png)
 
+
+
+## 6.4 Redis通信协议
+
+![image-20240510101118195](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240510101118195.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
