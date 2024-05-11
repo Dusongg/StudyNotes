@@ -2,6 +2,8 @@
 
 **https://docs.docker.com/engine/install/ubuntu/**
 
+![image-20240511135034985](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511135034985.png)
+
 # 2 常用命令
 
 ![image-20240510222738923](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240510222738923.png)
@@ -57,3 +59,44 @@ source ~/.bashrc
 - 容器创建时，如果数据卷不存在，自动创建（执行`docker colume create`）
 
 `docker run -d --name nginx -p 80:80 -v html:/usr/share/nginx/html nginx`
+
+## 本地目录挂载
+
+![image-20240511134833376](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511134833376.png)
+
+# 4 Dockerfile —— 自定义镜像
+
+- 镜像结构
+
+![image-20240511140400860](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511140400860.png)
+
+- dockerfile指令
+
+![image-20240511140425319](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511140425319.png)
+
+- 构建镜像
+
+`docker build -t 镜像名 Dockerfile的目录`
+
+
+
+# 5 Docker网络
+
+- 默认情况下通过网桥链接，ip自动分配
+- `ip addr`查看
+
+![image-20240511142108739](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511142108739.png)
+
+- 自定义网络 ：加入自定义网络的容器可以通过容器名互相访问
+
+![image-20240511142337816](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511142337816.png)
+
+![image-20240511155044792](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511155044792.png)
+
+
+
+# 6 DockerCompose
+
+![image-20240511163231272](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511163231272.png)
+
+![image-20240511164003893](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511164003893.png)
