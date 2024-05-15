@@ -160,3 +160,50 @@ public:
 [1871. 跳跃游戏 VII](https://leetcode.cn/problems/jump-game-vii/)
 
 ![image-20240414151238792](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240414151238792.png)
+
+
+
+# 4 排列型状压DP & 返回答案序列
+
+[3149. 找出分数最低的排列](https://leetcode.cn/problems/find-the-minimum-cost-array-permutation/)
+
+```cpp
+class Solution {
+public:
+    vector<int> findPermutation(vector<int>& nums) {
+        int n = nums.size();
+        vector<vector<int>> memo(1 << n, vector<int>(n, -1));
+        function<int(int, int)> f = [&](int s, int i) -> int {
+            if (s == (1 << n) - 1) return abs(i - nums[0]);
+            int& res = memo[s][i];
+            if (res != -1) return res;
+            res = INT_MAX;
+
+            for (int j = 1; j < n; j++) {
+                if ((s & 1 << j) == 0) {
+                    res = min(res, f(s | 1 << j, j) + abs(i - nums[j]));
+                }
+            }
+            return res;
+        };
+        vector<int> ans;
+        function<void(int, int)> make_ans = [&](int s, int i) {
+            ans.push_back(i);
+            if (s == (1 << n) - 1) return;
+
+            int res = f(s, i);
+            for (int j = 1; j < n; j++) {
+                if ((s & 1 << j) == 0 && f(s | 1 << j,j) + abs(i - nums[j]) == res) {
+                    make_ans(s | 1 << j, j);
+                    break;
+                }
+            }
+            return;
+        };
+        make_ans(1, 0);
+        return ans;
+
+    }
+};
+```
+
