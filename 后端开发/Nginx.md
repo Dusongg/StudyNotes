@@ -85,7 +85,7 @@ docker run -d --name nginx -p 80:80 [-e 环境变量] [-v 宿主文件:挂载文
 
 ![image-20240515193918849](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240515193918849.png)
 
-# 3 初时nginx.conf
+# 3 初识nginx.conf
 
 - **[sendfile](https://xiaolincoding.com/os/8_network_system/zero_copy.html#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E6%9C%89-dma-%E6%8A%80%E6%9C%AF)**
 - `location`:匹配uri
@@ -122,7 +122,7 @@ http {
 	#配置根目录以及默认页面
         location / {    
             root   html;  #/usr/local/nginx/html
-            index  index.html index.htm;
+            index  index.html index.html;
         }
 
 	#出错页面配置
@@ -142,4 +142,205 @@ http {
 ## 4.1 配置域名
 
 ![image-20240515233859071](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240515233859071.png)
+
+```nginx
+server {
+    #监听端口
+        listen       80;
+        #域名，可以有多个，用空格隔开
+        server_name  localhost;
+
+	#配置根目录以及默认页面
+        location / {    
+            root   /www/www;  #/usr/local/nginx/html;
+            index  index.html index.html;
+        }
+
+	#出错页面配置
+        error_page   500 502 503 504  /50x.html;
+        #/50x.html文件所在位置
+        location = /50x.html {
+            root   html;
+        }
+    }
+
+server {
+    #监听端口
+        listen       80;
+        #域名，可以有多个，用空格隔开
+        server_name  dusong.com;
+
+	#配置根目录以及默认页面
+        location / {    
+            root   /www/gif;  #/usr/local/nginx/html;
+            index  index.html index.html;
+        }
+
+	#出错页面配置
+        error_page   500 502 503 504  /50x.html;
+        #/50x.html文件所在位置
+        location = /50x.html {
+            root   html;
+        }
+    }
+
+```
+
+## 4.2 ServerName匹配规则
+
+- `server_name`配置：
+  - `*.dusong.com`
+  - `dusong.*`
+  - 正则：`~^[0-9]+\.dusong.\com$`
+
+# 5 反向代理
+
+## 5.1proxy_pass
+
+```nginx
+server {
+    #监听端口
+        listen       80;
+        #域名，可以有多个，用空格隔开
+        server_name  localhost;
+
+	#配置根目录以及默认页面
+        location / {    
+        	proxy_pass qq.com;
+            #root   /www/gif;  #/usr/local/nginx/html;
+            #index  index.html index.html;
+        }
+
+	#出错页面配置
+        error_page   500 502 503 504  /50x.html;
+        #/50x.html文件所在位置
+        location = /50x.html {
+            root   html;
+        }
+    }
+```
+
+![image-20240516160627201](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240516160627201.png)
+
+## 5.2 负载均衡
+
+```nginx
+upstream httpds {
+    server 192.168.17.132:80;   #默认80端口，可以不写
+    server 192.168.17.133:80;
+}
+
+server {
+    #监听端口
+        listen       80;
+        #域名，可以有多个，用空格隔开
+        server_name  localhost;
+
+	#配置根目录以及默认页面
+        location / {    
+        	proxy_pass http://httpsd;
+            #root   /www/gif;  #/usr/local/nginx/html;
+            #index  index.html index.html;
+        }
+
+	#出错页面配置
+        error_page   500 502 503 504  /50x.html;
+        #/50x.html文件所在位置
+        location = /50x.html {
+            root   html;
+        }
+    }
+```
+
+## 5.3 负载均衡策略
+
+### 5.3.1 轮询
+
+默认情况下使用轮询方式，逐一转发，这种方式适用于无状态请求。
+
+### 5.3.2 权重
+
+1. `weight`：权重 
+
+```nginx
+upstream httpds {
+    server 192.168.17.132 weight=8;
+    server 192.168.17.133 weight=4;
+    server 192.168.17.134 weight=2;
+}
+```
+
+2. `down`  和  `backup`：
+
+```nginx
+upstream httpds {
+    server 192.168.17.132 weight=8 down;  #停用
+    server 192.168.17.133 weight=4 backup;	#备用机
+    server 192.168.17.134 weight=2;
+}
+```
+
+### 5.3.3 ip_hash、least_conn、url_hash、fair
+
+
+
+### 5.3.4 cookie/session/token
+
+ 
+
+## 5.4 Nginx动静分离配置
+
+```nginx
+location ~*/(js|img|css) {   #匹配当前本机nginx的js/img/css静态文件 
+    root html;
+    index index.html index.html;
+}
+```
+
+## 5.5 urlrewrite
+
+![image-20240516201703214](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240516201703214.png)
+
+```nginx
+server {
+    
+    location / {
+        rewrite ^/([0-9]+).html$		/index.jsp?pageNum=$1    break;
+    }
+    
+}
+```
+
+### 5.5.1 应用服务器防火墙配置
+
+![image-20240516203452903](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240516203452903.png)
+
+### 5.5.2 nginx作为网关服务器
+
+- 实现动静分离、urlrewrite、proxy_pass、负载均衡
+
+> 什么是网关，nginx可以作为网关嘛？
+>
+> 
+>
+> 网关（Gateway）是一个网络设备或服务，用于连接不同网络并处理网络之间的通信。网关可以实现网络协议转换、数据包过滤、流量控制等功能，常用于在不同网络拓扑和协议之间进行数据交换。
+>
+> Nginx 是一个高性能的 HTTP 和反向代理服务器，也是一个邮件代理服务器（IMAP/POP3）。它常用于：
+>
+> 1. **反向代理**：Nginx 可以作为反向代理服务器，将客户端请求转发给后端服务器，并返回后端服务器的响应给客户端。这样可以实现负载均衡、缓存和安全等功能。
+> 2. **负载均衡**：Nginx 可以将请求分发到多个后端服务器上，以实现负载均衡，分散服务器压力，提高可用性。
+> 3. **静态文件服务**：Nginx 可以高效地处理静态文件请求，如 HTML、CSS、JavaScript、图片等。
+> 4. **HTTP/HTTPS 服务器**：Nginx 支持 HTTP 和 HTTPS 协议，可以配置 SSL/TLS 证书实现安全通信。
+>
+> 因此，Nginx 可以作为网关的一种实现方式，特别是在 HTTP 和反向代理场景中。它可以处理客户端请求，转发给不同的后端服务，并进行负载均衡和缓存，从而提高系统的性能和可靠性。Nginx 还可以作为 API 网关，处理 API 请求，并进行路由、认证和限流等操作。
+
+## 5.6 防盗链配置
+
+![image-20240516210451976](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240516210451976.png)
+
+### 5.6.1 使用curl测试
+
+![image-20240516210329234](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240516210329234.png)
+
+
 
