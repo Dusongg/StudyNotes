@@ -193,7 +193,7 @@ server {
   - `dusong.*`
   - 正则：`~^[0-9]+\.dusong.\com$`
 
-# 5 反向代理
+# 5 基本使用
 
 ## 5.1proxy_pass
 
@@ -341,6 +341,19 @@ server {
 ### 5.6.1 使用curl测试
 
 ![image-20240516210329234](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240516210329234.png)
+
+### 5.6.1 配合rewrite返回报错图片
+
+```nginx
+valid_referers none 192.168.44.101;
+if($invalid_referer) {
+    rewrite ^/ /img/x.png break     #返回指定目录的一个图片
+}
+```
+
+
+
+## 5.7 高可用配置
 
 
 
