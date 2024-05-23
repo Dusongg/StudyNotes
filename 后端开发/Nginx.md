@@ -355,5 +355,60 @@ if($invalid_referer) {
 
 ## 5.7 高可用配置
 
+- keepalived通过判断keepalived进程是否在运行推断服务器是否宕机，进而切换到备用机
+
+![image-20240523163310565](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240523163310565.png)
+
+### 5.7.1 Keepalived
+
+1. 安装：`yum install -y keepalived`
+
+2. 修改配置：`vim /etc/keepalived/keepalived.conf`
+
+   1. 主机配置
+
+      ![image-20240523163022243](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240523163022243.png)
+
+   2. 从机配置
+
+      ![image-20240523162845555](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240523162845555.png)
+
+3. 启动：`systemctl start keepalived`
 
 
+
+# 6 线上实战
+
+1. 购买域名
+
+2. 购买vps
+
+3. 安装LNMP（在oneinstack.com上配置安装）
+
+   ![image-20240523172014667](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240523172014667.png)
+
+4. 解析域名到主机
+
+   ![image-20240523171936847](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240523171936847.png)
+
+5. 在线申请证书
+
+   ![image-20240523172233603](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240523172233603.png)
+
+6. 将证书配置到服务器上
+
+   1. ![image-20240523172551393](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240523172551393.png)
+
+   2. ![image-20240523172809225](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240523172809225.png)
+
+   3. 配置到nginx
+
+      ![image-20240523173115905](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240523173115905.png)
+
+7. 安装Discuz
+
+![image-20240523175236917](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240523175236917.png)
+
+
+
+# 7 Ningx高级
