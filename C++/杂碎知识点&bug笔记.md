@@ -137,6 +137,96 @@ int main() {
 }
 ```
 
+
+
+## 7.2 使用`std::variant`来代替`union`
+
+- 以下代码报错：
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <functional>
+#include <format>
+
+using namespace std;
+class test {
+	union test_t
+	{
+		test_t() {}
+		~test_t() {}
+		vector<int> t1;
+		vector<pair<int, int>> t2;
+	} tt;
+public:
+	test() {
+		tt.t1.resize(10);
+	}
+};
+
+
+int main() {
+	test t;
+}
+
+```
+
+> 上述代码报错的原因是因为C++中的联合体（union）不能包含非平凡类型（non-trivial types），例如`std::vector`。联合体设计用于简单类型，这些类型没有构造函数、析构函数或拷贝赋值运算符。而`std::vector`具有这些非平凡的成员函数，因此不能直接在联合体中使用。
+>
+> 为了修复这个问题，你可以使用`std::variant`来代替union，它被设计用来存储具有非平凡构造函数和析构函数的类型。以下是修改后的代码：
+>
+> ```cpp
+> #include <iostream>
+> #include <vector>
+> #include <variant>
+> 
+> using namespace std;
+> 
+> class test {
+>     using test_t = variant<vector<int>, vector<pair<int, int>>>;
+>     test_t tt;
+> public:
+>     test() {
+>         tt = vector<int>(10);
+>     }
+> };
+> 
+> int main() {
+>     test t;
+> }
+> ```
+>
+> 这样修改后，代码将能够成功编译并正确运行。`std::variant`允许你存储指定类型之一，并适当地管理它们的构造和析构。
+>
+> **下一步建议：**
+>
+> **a.** 给`test`类添加额外的方法来操作`variant`并展示其用法。
+> **b.** 编写单元测试来验证`test`类及其方法的正确性。
+
+### 通过`variant`绑定其中一个类型，并调用该类型成员函数 —— `get_if`
+
+```cpp
+#include <iostream>
+#include <variant>
+ 
+int main()
+{
+    auto check_value = [](const std::variant<int, float>& v)
+    {
+        if (const int* pval = std::get_if<int>(&v))
+            std::cout << "变体值: " << *pval << '\n';
+        else
+            std::cout << "获取值失败！" << '\n';
+    };
+ 
+    std::variant<int, float> v{12}, w{3.f};
+    check_value(v);
+    check_value(w);
+}
+```
+
+
+
 # 8 懒汉模式静态局部变量初始化为线程安全的
 
 > 单例模式是一种常见的设计模式，用于确保一个类只有一个实例，并提供一个全局访问点。在 C++ 中，可以通过以下方式实现单例模式：
