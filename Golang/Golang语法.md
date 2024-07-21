@@ -90,3 +90,82 @@ r := [...]int{99: -1}   //定义了一个含有100个元素的数组r，最后�
 
 
 
+
+
+# 3 Deffered函数
+
+defer语句中的函数会在return语句更新返回值变量后再执行
+
+1. 使用defer记录函数执行时间
+
+   ```go
+   func bigSlowOperation() {
+       defer trace("bigSlowOperation")() // don't forget the extra parentheses
+       // ...lots of work…
+       time.Sleep(10 * time.Second) // simulate slow operation by sleeping
+   }
+   func trace(msg string) func() {
+       start := time.Now()
+       log.Printf("enter %s", msg)
+       return func() { 
+           log.Printf("exit %s (%s)", msg,time.Since(start)) 
+       }
+   }
+   
+   ```
+
+2. 我们知道，defer语句中的函数会在return语句更新返回值变量后再执行，又因为在函数中定义的匿名函数可以访问该函数包括返回值变量在内的所有变量，所以，对匿名函数采用defer机制，可以使其观察函数的返回值。
+
+以double函数为例：
+
+```Go
+func double(x int) int {
+    return x + x
+}
+```
+
+我们只需要首先命名double的返回值，再增加defer语句，我们就可以在double每次被调用时，输出参数以及返回值。
+
+```Go
+func double(x int) (result int) {
+    defer func() { fmt.Printf("double(%d) = %d\n", x,result) }()
+    return x + x
+}
+_ = double(4)
+// Output:
+// "double(4) = 8"
+```
+
+
+
+
+
+# 4 接口
+
+1. 可能的bug
+
+   ```go
+   const debug = true
+   
+   func main() {
+       var buf *bytes.Buffer
+       if debug {
+           buf = new(bytes.Buffer) // enable collection of output
+       }
+       f(buf) // NOTE: subtly incorrect!
+       if debug {
+           // ...use buf...
+       }
+   }
+   
+   // If out is non-nil, output will be written to it.
+   func f(out io.Writer) {
+       // ...do something...
+       if out != nil {
+           out.Write([]byte("done!\n"))
+       }
+   }
+   
+   ```
+
+   
