@@ -1,5 +1,16 @@
 # Git基本操作
 
+## 常用指令
+
+- `git reset`：撤销add
+- `git commit -s`：查看add的内容
+- `git push -force origin main`：当远程节点提交比本地多时，直接强制提交或者`--force-with-lease`![image-20240725191647187](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240725191647187.png)
+- 
+
+
+
+
+
 ## Permission denied (publickey).问题
 
 ![254c97810ab8d4a64f2f2d44a982e33](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/254c97810ab8d4a64f2f2d44a982e33.png)
