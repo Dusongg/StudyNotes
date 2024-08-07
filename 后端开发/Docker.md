@@ -767,6 +767,24 @@
 docker run -d --name nginx -p 80:80 [-e 环境变量] [-v 宿主文件:挂载文件路径] nginx
 ```
 
+### 运行mysql
+
+```bash
+docker run --name mysql8019 -p 13306:3306 -e MYSQL_ROOT_PASSWORD=root1234 -d mysql:8.0.19
+
+docker exec -it mysql8019 mysql -uroot -proot1234
+
+docker ps 
+
+docker stop [CONTAINER ID]
+
+docker start [CONTAINER ID]
+```
+
+
+
+
+
 2. `docker exec`
 
 ```bash

@@ -46,7 +46,11 @@
 
 ![image-20240417214538696](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240417214538696.png)
 
-## 1.4 配置文件`my.cnf`
+## 1.4 配置文件
+
+`sudo vim /etc/mysql/mysql.conf.d/mysqld.cnf`
+
+
 
 ```cnf
 //免密码登录

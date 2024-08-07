@@ -3,11 +3,54 @@
 ## 常用指令
 
 - `git reset`：撤销add
+
 - `git commit -s`：查看add的内容
+
 - `git push -force origin main`：当远程节点提交比本地多时，直接强制提交或者`--force-with-lease`![image-20240725191647187](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240725191647187.png)
-- 
 
+  
 
+### 更换远程仓库
+
+> ### 更改远程仓库 URL
+>
+> 1. **查看当前远程仓库 URL**：
+>
+>    在终端中，进入你的 Git 仓库目录，然后运行以下命令查看当前远程仓库的 URL：
+>
+>    ```
+>    git remote -v
+>    ```
+>
+>    你会看到类似如下的输出：
+>
+>    ```
+>    origin  https://github.com/username/repo.git (fetch)
+>    origin  https://github.com/username/repo.git (push)
+>    ```
+>
+> 2. **更改远程仓库 URL**：
+>
+>    使用 `git remote set-url` 命令来更改远程仓库的 URL。例如，如果你要将 `origin` 的 URL 更改为 `https://github.com/newuser/newrepo.git`，运行以下命令：
+>
+>    ```
+>    git remote set-url origin https://github.com/newuser/newrepo.git
+>    ```
+>
+> 3. **验证更改**：
+>
+>    再次运行 `git remote -v` 命令来确认远程仓库的 URL 已更改：
+>
+>    ```
+>    git remote -v
+>    ```
+>
+>    你应该会看到新的 URL：
+>
+>    ```
+>    perl复制代码origin  https://github.com/newuser/newrepo.git (fetch)
+>    origin  https://github.com/newuser/newrepo.git (push)
+>    ```
 
 
 
