@@ -225,7 +225,7 @@ server {
 ## 5.2 负载均衡
 
 ```nginx
-upstream httpds {
+upstream httpsd {
     server 192.168.17.132:80;   #默认80端口，可以不写
     server 192.168.17.133:80;
 }

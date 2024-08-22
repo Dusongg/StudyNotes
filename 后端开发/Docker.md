@@ -1,5 +1,7 @@
 # 1 Docker的安装
 
+https://help.aliyun.com/zh/ecs/use-cases/install-and-use-docker-on-a-linux-ecs-instance#09f33cdf95hzv
+
 **https://docs.docker.com/engine/install/ubuntu/**(用不了)
 
 1. 安装：[install_docker.sh](..\..\install_docker.sh) 
@@ -795,6 +797,17 @@ docker exec -it nginx bash
 exit
 ```
 
+### 在运行的容器中运行mysql
+
+```BASH
+exec -it f18da16a92f3 /bin/bash
+
+#如果 MySQL 服务器在同一个 Docker 网络中的另一个容器内运行，你可以使用容器名作为主机名
+mysql -uroot -p -h mysql -P 3306   
+```
+
+
+
 3. 解决`docker ps --format`命令复杂问题
 
 ```bash
@@ -871,3 +884,81 @@ source ~/.bashrc
 ![image-20240511163231272](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511163231272.png)
 
 ![image-20240511164003893](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240511164003893.png)
+
+- `docker compose build`重建
+
+# 7 dockers-compose up容器顺序问题
+
+```yaml
+depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+        
+        
+        
+  healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      
+      
+      
+# ---------完整-------
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: ordermanager
+    environment:
+      GORM_DNS: ${GORM_DNS}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      EMAIL_SENDER: ${SENDER}
+      EMAIL_SENDER_PASSWORD: ${PASSWORD}
+      SEND_MAIL_TIME_POINT1: ${SEND_MAIL_TIME_POINT1}
+      SEND_MAIL_TIME_POINT2: ${SEND_MAIL_TIME_POINT2}
+      LOG_PATH: ${LOG_PATH}
+      ADMIN: ${ADMIN}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8001:8001"
+
+  db:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "13306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "16379:6379"
+
+volumes:
+  db_data:
+
+```
+
