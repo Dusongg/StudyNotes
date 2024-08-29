@@ -1,6 +1,14 @@
 # 1 Docker的安装
 
-https://help.aliyun.com/zh/ecs/use-cases/install-and-use-docker-on-a-linux-ecs-instance#09f33cdf95hzv
+> 阿里云服务器安装docker:
+>
+> https://help.aliyun.com/zh/ecs/use-cases/install-and-use-docker-on-a-linux-ecs-instance#09f33cdf95hzv
+>
+> 使用阿里云镜像仓库 + github拉取镜像：https://juejin.cn/post/7384623060199473171
+>
+> 阿里云镜像仓库：https://cr.console.aliyun.com/cn-hangzhou/instance/repositories
+
+
 
 **https://docs.docker.com/engine/install/ubuntu/**(用不了)
 
@@ -962,3 +970,4 @@ volumes:
 
 ```
 
+- `docker compose down`一键停止`docker compose up`起的容器
