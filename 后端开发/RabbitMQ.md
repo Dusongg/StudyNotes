@@ -20,6 +20,7 @@ docker run \
 	-e RABBITMQ_DEFAULT_USER=dusong \  #默认账号和密码均为：guest
 	-e RABBITMQ_DEFAULT_PASS=123123 \
 	-d \  #detached mode
+	-v mq-plugins:/plugins \   #插件挂载
 	--rm \
    	--name rabbitmq \
     -p 5672:5672 \    #消息通信端口
@@ -205,7 +206,12 @@ err = ch.PublishWithContext(ctx,
 
   ![image-20240904172521990](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240904172521990.png)
 
+## 5.4 业务幂等性
 
+- 消费者因为保证可靠性可能消费业务多次，因此需要保证业务幂等性
+
+1. 给消息加上uuid
+2. 在业务逻辑上做修改 
 
 ## 5.4 Golang实现可靠性
 
@@ -308,3 +314,60 @@ err = ch.PublishWithContext(ctx,
 > - **死信队列（DLX）：** 配置死信队列，将处理失败的消息路由到指定的死信队列，方便后续分析和处理。
 >
 > 通过这些措施，可以有效提高使用 RabbitMQ 时的消息可靠性。
+
+
+
+# 6 延迟消息
+
+## 6.1 死信交换机
+
+![image-20240905145924200](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240905145924200.png)
+
+## 6.2 延迟消息插件
+
+### 6.2.1 安装
+
+1. https://github.com/rabbitmq/rabbitmq-delayed-message-exchange/releases/download/v3.13.0/rabbitmq_delayed_message_exchange-3.13.0.ez
+
+2. 将插件放在该目录
+
+   ![image-20240905153455222](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240905153455222.png)
+
+3. `docker exec -it rabbitmq rabbitmq-plugins enable rabbitmq-delayed-message-exchange`
+
+### 6.2.2 使用
+
+```go
+ // 3. 声明延迟交换机
+    err = ch.ExchangeDeclare(
+        "delay_exchange",               // 交换机名称
+        "x-delayed-message",            // 交换机类型
+        true,                           // 是否持久化
+        false,                          // 是否自动删除
+        false,                          // 是否内部使用
+        false,                          // 是否等待
+        amqp.Table{"x-delayed-type": "direct"}, // 交换机类型的设置
+    )
+    failOnError(err, "Failed to declare an exchange")
+
+    // 4. 发送消息
+    body := "Hello World with delay"
+    err = ch.Publish(
+        "delay_exchange", // 交换机名称
+        "routing_key",    // 路由键
+        false,            // 是否强制发送
+        false,            // 是否立即发送
+        amqp.Publishing{
+            ContentType: "text/plain",
+            Body:        []byte(body),
+            Headers: amqp.Table{
+                "x-delay": int32(5000), // 延迟时间，单位为毫秒 (5秒延迟)
+            },
+        })
+```
+
+### 6.2.3 应用场景
+
+- 消息内部维护一个计时器，延迟消息对CPU的消耗较高，适用于延迟时间较短的场景
+
+![image-20240905155732697](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240905155732697.png)
