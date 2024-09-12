@@ -831,6 +831,19 @@ source ~/.bashrc
 
 
 
+4. 拷贝配置文件到docker容器内部
+
+   ```bash
+   # 查看容器内的 /etc/ipsec.d 目录的文件
+   docker exec -it ipsec-vpn-server ls -l /etc/ipsec.d
+   # 示例：将一个客户端配置文件从容器复制到 Docker 主机当前目录
+   docker cp ipsec-vpn-server:/etc/ipsec.d/vpnclient.p12 ./
+   ```
+
+   
+
+   
+
 # 3 数据卷挂载
 
 - 如何在容器内修改文件？ ---> 数据卷`docker volume`
