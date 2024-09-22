@@ -240,235 +240,6 @@ redis虽然是单线程模型，为什么效率却这么高
 
 ## 2.1 RESP协议（Redis serialization protocol）
 
-
-
-## 2.2 基础案例
-
-```cpp
-#include <sw/redis++/redis++.h>
-
-using namespace sw::redis;
-
-try {
-    // Create an Redis object, which is movable but NOT copyable.
-    auto redis = Redis("tcp://127.0.0.1:6379");
-
-    // ***** STRING commands *****
-
-    redis.set("key", "val");
-    auto val = redis.get("key");    // val is of type OptionalString. See 'API Reference' section for details.
-    if (val) {
-        // Dereference val to get the returned value of std::string type.
-        std::cout << *val << std::endl;
-    }   // else key doesn't exist.
-
-    // ***** LIST commands *****
-
-    // std::vector<std::string> to Redis LIST.
-    std::vector<std::string> vec = {"a", "b", "c"};
-    redis.rpush("list", vec.begin(), vec.end());
-
-    // std::initializer_list to Redis LIST.
-    redis.rpush("list", {"a", "b", "c"});
-
-    // Redis LIST to std::vector<std::string>.
-    vec.clear();
-    redis.lrange("list", 0, -1, std::back_inserter(vec));
-
-    // ***** HASH commands *****
-
-    redis.hset("hash", "field", "val");
-
-    // Another way to do the same job.
-    redis.hset("hash", std::make_pair("field", "val"));
-
-    // std::unordered_map<std::string, std::string> to Redis HASH.
-    std::unordered_map<std::string, std::string> m = {
-        {"field1", "val1"},
-        {"field2", "val2"}
-    };
-    redis.hmset("hash", m.begin(), m.end());
-
-    // Redis HASH to std::unordered_map<std::string, std::string>.
-    m.clear();
-    redis.hgetall("hash", std::inserter(m, m.begin()));
-
-    // Get value only.
-    // NOTE: since field might NOT exist, so we need to parse it to OptionalString.
-    std::vector<OptionalString> vals;
-    redis.hmget("hash", {"field1", "field2"}, std::back_inserter(vals));
-
-    // ***** SET commands *****
-
-    redis.sadd("set", "m1");
-
-    // std::unordered_set<std::string> to Redis SET.
-    std::unordered_set<std::string> set = {"m2", "m3"};
-    redis.sadd("set", set.begin(), set.end());
-
-    // std::initializer_list to Redis SET.
-    redis.sadd("set", {"m2", "m3"});
-
-    // Redis SET to std::unordered_set<std::string>.
-    set.clear();
-    redis.smembers("set", std::inserter(set, set.begin()));
-
-    if (redis.sismember("set", "m1")) {
-        std::cout << "m1 exists" << std::endl;
-    }   // else NOT exist.
-
-    // ***** SORTED SET commands *****
-
-    redis.zadd("sorted_set", "m1", 1.3);
-
-    // std::unordered_map<std::string, double> to Redis SORTED SET.
-    std::unordered_map<std::string, double> scores = {
-        {"m2", 2.3},
-        {"m3", 4.5}
-    };
-    redis.zadd("sorted_set", scores.begin(), scores.end());
-
-    // Redis SORTED SET to std::vector<std::pair<std::string, double>>.
-    // NOTE: The return results of zrangebyscore are ordered, if you save the results
-    // in to `std::unordered_map<std::string, double>`, you'll lose the order.
-    std::vector<std::pair<std::string, double>> zset_result;
-    redis.zrangebyscore("sorted_set",
-            UnboundedInterval<double>{},            // (-inf, +inf)
-            std::back_inserter(zset_result));
-
-    // Only get member names:
-    // pass an inserter of std::vector<std::string> type as output parameter.
-    std::vector<std::string> without_score;
-    redis.zrangebyscore("sorted_set",
-            BoundedInterval<double>(1.5, 3.4, BoundType::CLOSED),   // [1.5, 3.4]
-            std::back_inserter(without_score));
-
-    // Get both member names and scores:
-    // pass an back_inserter of std::vector<std::pair<std::string, double>> as output parameter.
-    std::vector<std::pair<std::string, double>> with_score;
-    redis.zrangebyscore("sorted_set",
-            BoundedInterval<double>(1.5, 3.4, BoundType::LEFT_OPEN),    // (1.5, 3.4]
-            std::back_inserter(with_score));
-
-    // ***** SCRIPTING commands *****
-
-    // Script returns a single element.
-    auto num = redis.eval<long long>("return 1", {}, {});
-
-    // Script returns an array of elements.
-    std::vector<std::string> nums;
-    redis.eval("return {ARGV[1], ARGV[2]}", {}, {"1", "2"}, std::back_inserter(nums));
-
-    // mset with TTL
-    auto mset_with_ttl_script = R"(
-        local len = #KEYS
-        if (len == 0 or len + 1 ~= #ARGV) then return 0 end
-        local ttl = tonumber(ARGV[len + 1])
-        if (not ttl or ttl <= 0) then return 0 end
-        for i = 1, len do redis.call("SET", KEYS[i], ARGV[i], "EX", ttl) end
-        return 1
-    )";
-
-    // Set multiple key-value pairs with TTL of 60 seconds.
-    auto keys = {"key1", "key2", "key3"};
-    std::vector<std::string> args = {"val1", "val2", "val3", "60"};
-    redis.eval<long long>(mset_with_ttl_script, keys.begin(), keys.end(), args.begin(), args.end());
-
-    // ***** Pipeline *****
-
-    // Create a pipeline.
-    auto pipe = redis.pipeline();
-
-    // Send mulitple commands and get all replies.
-    auto pipe_replies = pipe.set("key", "value")
-                            .get("key")
-                            .rename("key", "new-key")
-                            .rpush("list", {"a", "b", "c"})
-                            .lrange("list", 0, -1)
-                            .exec();
-
-    // Parse reply with reply type and index.
-    auto set_cmd_result = pipe_replies.get<bool>(0);
-
-    auto get_cmd_result = pipe_replies.get<OptionalString>(1);
-
-    // rename command result
-    pipe_replies.get<void>(2);
-
-    auto rpush_cmd_result = pipe_replies.get<long long>(3);
-
-    std::vector<std::string> lrange_cmd_result;
-    pipe_replies.get(4, back_inserter(lrange_cmd_result));
-
-    // ***** Transaction *****
-
-    // Create a transaction.
-    auto tx = redis.transaction();
-
-    // Run multiple commands in a transaction, and get all replies.
-    auto tx_replies = tx.incr("num0")
-                        .incr("num1")
-                        .mget({"num0", "num1"})
-                        .exec();
-
-    // Parse reply with reply type and index.
-    auto incr_result0 = tx_replies.get<long long>(0);
-
-    auto incr_result1 = tx_replies.get<long long>(1);
-
-    std::vector<OptionalString> mget_cmd_result;
-    tx_replies.get(2, back_inserter(mget_cmd_result));
-
-    // ***** Generic Command Interface *****
-
-    // There's no *Redis::client_getname* interface.
-    // But you can use *Redis::command* to get the client name.
-    val = redis.command<OptionalString>("client", "getname");
-    if (val) {
-        std::cout << *val << std::endl;
-    }
-
-    // Same as above.
-    auto getname_cmd_str = {"client", "getname"};
-    val = redis.command<OptionalString>(getname_cmd_str.begin(), getname_cmd_str.end());
-
-    // There's no *Redis::sort* interface.
-    // But you can use *Redis::command* to send sort the list.
-    std::vector<std::string> sorted_list;
-    redis.command("sort", "list", "ALPHA", std::back_inserter(sorted_list));
-
-    // Another *Redis::command* to do the same work.
-    auto sort_cmd_str = {"sort", "list", "ALPHA"};
-    redis.command(sort_cmd_str.begin(), sort_cmd_str.end(), std::back_inserter(sorted_list));
-
-    // ***** Redis Cluster *****
-
-    // Create a RedisCluster object, which is movable but NOT copyable.
-    auto redis_cluster = RedisCluster("tcp://127.0.0.1:7000");
-
-    // RedisCluster has similar interfaces as Redis.
-    redis_cluster.set("key", "value");
-    val = redis_cluster.get("key");
-    if (val) {
-        std::cout << *val << std::endl;
-    }   // else key doesn't exist.
-
-    // Keys with hash-tag.
-    redis_cluster.set("key{tag}1", "val1");
-    redis_cluster.set("key{tag}2", "val2");
-    redis_cluster.set("key{tag}3", "val3");
-
-    std::vector<OptionalString> hash_tag_res;
-    redis_cluster.mget({"key{tag}1", "key{tag}2", "key{tag}3"},
-            std::back_inserter(hash_tag_res));
-
-} catch (const Error &e) {
-    // Error handling.
-}
-```
-
-
-
 # 3 分布式缓存 —— redis集群
 
 ## 3.1 持久化
@@ -1059,17 +830,151 @@ zset底层数据结构必须满足键值存储、键必须唯一、可排序这�
 
 - 线程安全问题：由于是做查询不是做修改，所以只能用悲观锁方案，不能用乐观锁方案，但是只需要锁用户id
 
-- 将整个查询id、扣减库存、添加订单加锁
+- 将整个查询id、扣减库存、添加订单加锁 
 
 
 
 > [!WARNING]
 >
-> 集群模式下，锁只对当前进程有效  ---> 分布式锁
+> 集群模式下，锁只对当前进程有效  ---> **[分布式锁](##7.4 Redis分布式锁)**  
 
 
+
+### 7.3.4 redis优化秒杀业务
+
+- 将库存判断和一人一单判断放到redis里实现
+
+![image-20240921154902002](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921154902002.png)
 
 
 
 ## 7.4 Redis分布式锁
 
+### 7.4.1 基本实现
+
+思路：
+
+> [!NOTE]
+>
+> - 利用set nxex获取锁，并设置过期时间，保存线程标示
+> - 释放锁时先判断线程标示是否与自己一致，一致则删除锁
+
+ ![image-20240921141327908](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20240921141327908.png)
+
+- 问题：
+
+  - 超时时间小于业务所需时间，业务完成时有可能释放其他线程的锁（所以释放锁时需要判断key的value是不是自己的线程id）
+
+    ![image-20240921142625162](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921142625162.png)
+
+  - 多台主机的线程id可能重复，所以可以用uuid + 线程id做为value
+
+  - 每当删除锁时，需要判断是否是自己创建的锁
+
+  - > [!WARNING]
+    >
+    > 获取锁标识并判断是否一致  与  释放锁 需要是原子的
+    >
+    > ![image-20240921145719906](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921145719906.png)
+
+
+
+###  7.4.2 Reids执行Lua脚本实现原子操作
+
+> ==Redis的Lua脚本执行是原子的==，因为Redis在执行Lua脚本时将脚本视为一个不可分割的事务。Redis的内部实现通过以下方式保证了这一点：
+>
+> 1. **单线程执行**：Redis是单线程模型，在执行Lua脚本时，会阻塞其他命令的执行，直到脚本执行完成。
+> 2. **脚本执行的不可中断性**：一旦Lua脚本开始执行，它会完整地执行，直到结束。执行期间，不会有其他命令打断它。
+> 3. **事务性质**：所有在Lua脚本中发出的Redis命令（如`GET`、`SET`、`INCR`等）都是作为一个整体执行的，要么全部成功，要么全部失败
+
+![image-20240921144206913](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921144206913.png)
+
+![image-20240921145018728](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921145018728.png)
+
+```go
+func acquireLock(ctx context.Context, key string, value string, expiration time.Duration) (bool, error) {
+	// 使用NX和PX选项来设置分布式锁
+	result, err := rdb.SetNX(ctx, key, value, expiration).Result()
+	if err != nil {
+		return false, err
+	}
+	return result, nil
+}
+
+// 释放锁
+func releaseLock(ctx context.Context, key string, value string) (bool, error) {
+	// Lua脚本：仅当key的值与给定value相同时才删除
+	script := redis.NewScript(`
+	if redis.call("GET", KEYS[1]) == ARGV[1] then
+		return redis.call("DEL", KEYS[1])
+	else
+		return 0
+	end`)
+
+	// 执行Lua脚本
+	result, err := script.Run(ctx, rdb, []string{key}, value).Result()
+	if err != nil {
+		return false, err
+	}
+
+	// 判断结果是否为1（1表示删除成功，0表示未删除）
+	return result == int64(1), nil
+}
+```
+
+
+
+
+
+### 7.4.3 基于Redis的分布式锁优化 —— Redisson
+
+> 基于setnx实现的分布式锁存在的问题
+
+- 不可重入：同一个线程无法多次获取同一把锁
+- 不可重试：获取失败，没有重试机制
+- 超时释放：**锁续期机制**：在某些情况下，如果任务执行时间较长，可以通过实现锁的续期机制（例如定期重新设置锁的过期时间）来保持锁的有效性。
+- 主从一致性：
+
+
+
+## 7.5 Redis消息队列
+
+- [rabbitMQ](../RabbitMQ.md)
+
+
+
+### 7.5.1 list实现
+
+LPUSH + BRPOP 实现
+
+> - 单消费者
+> - 无法保证可靠性
+
+### 7.5.2 发布订阅实现
+
+![image-20240921203124380](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921203124380.png)
+
+> 不支持数据持久化
+>
+> 无法保证可靠性
+>
+> 消息堆积有上限，超出时数据丢失（消费者无法接收到离线时的数据）
+
+### 7.5.3 [Streams](https://redis.io/docs/latest/commands/?group=stream)
+
+1. `XADD`生产
+
+![image-20240921204204306](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921204204306.png)
+
+2. `XREAD`消费
+
+通过`XREAD`的`$`读取，可能会出现==消息漏读==的问题，因为`$`只会读取最新消息
+
+![image-20240921204701258](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921204701258.png)
+
+3. `XGROUP`消费者组
+
+![image-20240921205309401](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921205309401.png)
+
+- `XGROUP CREATE`
+- `XREADGROUP`
