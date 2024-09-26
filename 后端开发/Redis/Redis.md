@@ -978,3 +978,8 @@ LPUSH + BRPOP 实现
 
 - `XGROUP CREATE`
 - `XREADGROUP`
+
+
+
+## 7.6 达人探店
+
