@@ -3,12 +3,17 @@
 ## 常用指令
 
 - `git reset`：撤销add
-
 - `git commit -s`：查看add的内容
-
 - `git push -force origin main`：当远程节点提交比本地多时，直接强制提交或者`--force-with-lease`![image-20240725191647187](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240725191647187.png)
 
-  
+
+### 分支切换与合并
+
+- `git checkout -b <本地分支名> origin/<远程分支名>` : 创建新的本地分支并链接远程分支
+- `git branch -vv` : 查看分支跟踪状态
+- 分支合并
+  - `git checkout <目标分支>`
+  - ``git merge <待合并的分支>`
 
 ### 更换远程仓库
 
