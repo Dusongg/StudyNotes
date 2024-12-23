@@ -1,0 +1,78 @@
+# 认识
+
+- ES简介：Elasticsearch(后面简写ES)是一个分布式、高扩展、近实时的搜索与数据分析引擎，它能很方便的使大量数据具有搜索、分析和探索的能力，充分利用Elasticsearch的水平伸缩性，能使数据在生产环境变得更有价值。
+- ES生态：
+  - **Kibana**：Kibana是Elastic Stack产品中的一款<u>可视化工具</u>，支持柱状图、线状图、饼图、旭日图等多种图形，还可以使用Vega 语法来设计独属于我们自己的可视化图形。
+  - **Beats**：Beats是一个<u>轻量型采集器的平台</u>，集合了多种轻量级的、单一的数据采集器，几乎可以兼容所有的数据类型，这些采集器可以从成千上万的系统中采集数据并向Logstash和Elasticsearch发送数据。
+  - **LogStash**：Logstash是开源的<u>服务器端数据处理管道</u>，能够同时从多个来源采集数据，转换数据，然后将数据发送到您最喜欢的存储库中，一般就是发送到Elasticsearch当中。
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20241223174301416.png" alt="image-20241223174301416" style="zoom:67%;" />
+
+## 搜索术语
+
+![image-20241223174340399](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20241223174340399.png)
+
+## ES执行流程
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20241223174429119.png" alt="image-20241223174429119" style="zoom:67%;" />
+
+
+
+
+
+# ES组成
+
+## Term Index
+
+将term dictionary的key构造FST（前缀树），由于内存占用小，可以存放在内存中加速搜索
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20241223191104320.png" alt="image-20241223191104320" style="zoom:50%;" />
+
+> <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20241223191859915.png" alt="image-20241223191859915" style="zoom:50%;" />
+
+## Stored Field
+
+Stored Field用于存放完整的文档内容
+
+### Doc Values
+
+**Doc Values** 是一种为字段预先构建的、面向列式存储的数据结构，主要用于支持**快速排序**、**聚合**和**脚本计算**等操作。
+
+- **列式存储**（如 Doc Values）将同一字段的所有文档值存储在一起。对于需要操作单一字段（例如排序、聚合）的场景，列式存储更加高效。
+
+## Segment
+
+在 Elasticsearch 中，**Segment（段）** 是 <u>Lucene 的一种基础存储单元，也是 Elasticsearch 索引数据的核心组成部分</u>。每个索引的文档都会被分成多个 Segment，这些 Segment 是不可变的，并存储着倒排索引和其他数据结构，用于快速查询。
+
+- segment是具备查询功能的最小单元
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20241223194826034.png" alt="image-20241223194826034" style="zoom:50%;" />
+
+1. **segment只读**
+
+多个文档生成一个segment，如果有新的文档添加进来，由于涉及修改segment内部多个结构，影响效率，所以新添加的文档会生成一个新的segment，对于多个segment只需并发读就行
+
+2. **segment merge（段合并）**
+
+为了优化查询性能，减少 Segment 数量，Elasticsearch 会定期触发 **Segment 合并**。合并时，多个小 Segment 会被合并为一个更大的 Segment，同时清理被删除文档的空间。
+
+
+
+### Segment与索引的关系
+
+> [!NOTE]
+>
+> **索引** 是 Elasticsearch 中的逻辑命名空间，是数据的存储、组织和管理单元。一个索引可以包含许多文档，每个文档以 JSON 格式存储。
+>
+> - 索引在底层由多个 **分片（Shard）** 组成，每个分片实际上是一个独立的 **Lucene 索引**。
+> - ES中的索引相当于关系型数据库中的表
+
+- **索引、分片与 Segment 的层次关系**
+
+  ```
+  Index (逻辑命名空间)
+  └── Shards (分片，分布式存储)
+      └── Segments (物理存储单元)
+  ```
+
+  
