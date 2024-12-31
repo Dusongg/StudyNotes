@@ -6,7 +6,7 @@
 
 - 发布流水线
 
-  <img src="assets/image-20241205143807610.png" alt="image-20241205143807610" style="zoom:50%;" />
+  <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/IMG_1021.jpeg" alt="IMG_1021" style="zoom:50%;" />
 
 # 2 什么是CI/CD
 
@@ -60,9 +60,9 @@ Jenkins类似GitHub Actions，它们都是用来自动化执行 CI/CD 流程的�
 
 2. 在 .github/workflows/ 下编写 YAML 文件定义工作流。
 
-   ![image-20241205143348726](assets/image-20241205143348726.png)
+   <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20241205143348726_%E5%89%AF%E6%9C%AC.png" alt="image-20241205143348726_副本" style="zoom:50%;" />
 
 3. 每当触发器（如代码推送或 PR）被触发，GitHub Actions 会自动启动相应的工作流并运行任务。
 
-<img src="assets/IMG_1021.jpeg" alt="IMG_1021" style="zoom:50%;" />
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20241205143807610.png" alt="image-20241205143807610" style="zoom:50%;" />
 
