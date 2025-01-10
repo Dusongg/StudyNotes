@@ -95,3 +95,55 @@ POST /createUser
   - **HTTP 是通信协议**，RESTful API 通常基于 HTTP，但 HTTP 风格不一定遵循 REST 的设计原则。
 
 **简单来说**：RESTful API 利用 HTTP 协议并通过设计原则提升了接口的规范性和易用性，而 HTTP 风格只是简单利用了协议本身，没有统一的设计理念。
+
+
+
+
+
+
+
+# 计网基础
+
+### DNS解析步骤
+
+1️⃣查看浏览器缓存
+
+2️⃣ 查看操作系统缓存
+
+3️⃣查看host文件
+
+4️⃣ 询问本地DNS服务器（服务器本地缓存 —> 根域名服务器(.) —> 顶级域名服务器(.com) —> 权威DNS服务器(server.com)）
+
+### MSS、MTU相关
+
+- `MTU`：一个网络包的最大长度，以太网中一般为 `1500` 字节。
+- `MSS`：除去 IP 和 TCP 头部之后，一个网络包所能容纳的 TCP 数据的最大长度。
+
+![数据包分割](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/%E9%94%AE%E5%85%A5%E7%BD%91%E5%9D%80%E8%BF%87%E7%A8%8B/12.jpg)
+
+### 内核接受网络包流程
+
+#### NAPI（New API）
+
+通过**减少中断频率**，结合**中断驱动和轮询机制**，提高网络数据包的处理效率并减少系统资源的开销。
+
+- 传统网络终端弊端：”中断风暴“
+- NAPI优化：在接收到数据包时，最初仍通过中断方式通知内核。进入内核后，<u>中断被禁用</u>，改用<u>轮询方式批量处理数据包</u>（软中断）。
+
+#### 网络协议栈解析处理
+
+- **传输层—>socket层**：根据四元组`{源 IP、源端口、目的 IP、目的端口}` 作为标识，找出对应的 Socket，并把数据放到 Socket 的接收缓冲区
+
+- 应用层程序调用 Socket 接口，将内核的 <u>Socket 接收缓冲区的数据「拷贝」到应用层的缓冲区</u>，然后唤醒用户进程。
+
+![img](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost3@main/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/%E6%B5%AE%E7%82%B9/%E6%94%B6%E5%8F%91%E6%B5%81%E7%A8%8B.png)
+
+#### [Linux发送网络包流程](https://xiaolincoding.com/network/1_base/how_os_deal_network_package.html#linux-%E5%8F%91%E9%80%81%E7%BD%91%E7%BB%9C%E5%8C%85%E7%9A%84%E6%B5%81%E7%A8%8B)(细看)
+
+如上图右侧所示
+
+> 首先，应用程序会调用 Socket 发送数据包的接口，由于这个是系统调用，所以会从用户态陷入到内核态中的 Socket 层，内核会申请一个内核态的 sk_buff 内存，**将用户待发送的数据拷贝到 sk_buff 内存，并将其加入到发送缓冲区**。
+>
+> 接下来，网络协议栈从 Socket 发送缓冲区中取出 sk_buff，并按照 TCP/IP 协议栈从上到下逐层处理。
+>
+> 如果使用的是 TCP 传输协议发送数据，那么**先拷贝一个新的 sk_buff 副本** ，这是因为 sk_buff 后续在调用网络层，最后到达网卡发送完成的时候，这个 sk_buff 会被释放掉。而 TCP 协议是支持丢失**重传**的，在收到对方的 ACK 之前，这个 sk_buff 不能被删除。所以内核的做法就是每次调用网卡发送的时候，实际上传递出去的是 sk_buff 的一个拷贝，等收到 ACK 再真正删除
