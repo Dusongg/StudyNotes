@@ -696,7 +696,7 @@ zset底层数据结构必须满足键值存储、键必须唯一、可排序这�
 
 ## 6.3 Redis网络模型
 
-### 6.3.1 selecct
+### 6.3.1 select
 
 ![image-20240507203420468](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240507203420468.png)
 
