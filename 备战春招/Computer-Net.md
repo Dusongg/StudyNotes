@@ -158,11 +158,129 @@ DHE算法让双方的<u>私钥在每次密钥交换通信时，都是随机生�
 
 - 缺点：性能差
 
+#### ECDHE算法
+
+- 双方事先确定好使用哪种椭圆曲线，和曲线上的基点 `G`，这两个参数都是公开的；
+- 双方各自随机生成一个随机数作为**私钥`d`**，并与基点 G相乘得到**公钥Q**（`Q = dG`），此时小红的公私钥为 Q1 和 d1，小明的公私钥为 Q2 和 d2；
+- 双方交换各自的公钥，最后小红计算点（x1，y1） = d1Q2，小明计算点（x2，y2） = d2Q1，由于椭圆曲线上是可以满足乘法交换和结合律，所以 d1Q2 = d1d2G = d2d1G = d2Q1 ，因此**双方的 x 坐标是一样的，所以它是共享密钥，也就是会话密钥**。
+
+
+
+### HTTPS优化
+
+#### 协议优化
+
+**RSA  ——〉ECDHE**：
+
+- 保证向前安全
+
+> 在 ECDHE 协议中，客户端和服务器在每次会话开始时都会生成一个临时的椭圆曲线密钥对：
+>
+> ​	• 私钥：随机生成的临时值 $d_A$ 和 $d_B$ 。
+>
+> ​	• 公钥：通过椭圆曲线点倍乘 $Q_A = d_A \cdot G$ 和 $Q_B = d_B \cdot G$ 计算得到。
+
+- 客户端可以在 TLS 协议的第 3 次握手后，第 4 次握手前，发送加密的应用数据
+
+**TLS1.2 ——〉TLS1.3**
+
+- 握手时延从`2RTT`降到`1RTT`
+
+
+
+#### 证书优化
+
+- **证书传输优化**：对于服务器的证书应该选择椭圆曲线（ECDSA）证书，而不是 RSA 证书，因为在相同安全强度下， ECC 密钥长度比 RSA 短的多。
+- 证书验证优化：
+  - `CRL` 称为证书吊销列表（*Certificate Revocation List*），定时更新，实时性较差
+  - `OCSP`在线证书状态协议（*Online Certificate Status Protocol*）来查询证书的有效性，它的工作方式是**向 CA 发送查询请求，让 CA 返回证书的有效状态**。：受网络因素影响较大
+  - `OCSP Stapling`:为了解决这一个网络开销，就出现了 OCSP Stapling，其原理是：<u>服务器</u>向 CA 周期性地查询证书状态，获得一个带有**时间戳和签名**的响应结果并缓存它。<u>当有客户端发起连接请求时，服务器会把这个「响应结果」在 TLS 握手过程中发给客户端</u>。由于有签名的存在，服务器无法篡改，因此客户端就能得知证书是否已被吊销了，这样客户端就不需要再去查询。
+
+
+
+#### 会话复用
+
+- Session ID
+
+完成握手之后，双方保存唯一的会话ID，之后客户端将会话ID发送给服务端验证
+
+<u>缺点：耗费服务端存储，分布式/负载均衡下可能无法命中</u>
+
+- Session Ticket
+
+在初次握手完成后，服务器生成一个加密的会话票据，<u>其中包含会话密钥等信息（加密算法、共享密钥、会话参数、到期时间）</u>。票据由服务器使用其<u>密钥进行加密</u>，然后发送给客户端保存。
+
+- 两者都**不具备向前安全性**
+
+
+
+#### Pre-shared Key
+
+在使用TLS1.3与Session Ticket下，支持0-RTT重连
+
+- 可能遭受**重放攻击**，服务器需要设计防重放机制（如基于时间戳或序列号）。
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250116%E4%B8%8A%E5%8D%8810235141.png" alt="image-20250116上午10235141" style="zoom:50%;" />
+
+> [!NOTE]
+>
+> - 为什么是TLS1.3 ， TLS1.2不行？
+>
+> 
+>
+> - 为什么是Session Ticket ，Session Id不行？
+>
+> 
+
+
+
+
+
+
+
 ## HTTP2
 
+### 头部压缩
 
+**HPACK算法**：静态字典 + 动态字典 + Huffman编码
 
+### 二进制帧
 
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250116%E4%B8%8B%E5%8D%88105429998.png" alt="image-20250116下午105429998" style="zoom:50%;" />
+
+- 帧类型：
+
+  <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250116%E4%B8%8B%E5%8D%88105604510.png" alt="image-20250116下午105604510" style="zoom:50%;" />
+
+- 帧标志：
+
+  可以保存 8 个标志位，用于携带简单的控制信息，比如：
+
+  - **END_HEADERS** 表示头数据结束标志，相当于 HTTP/1 里头后的空行（“\r\n”）；
+  - **END_Stream** 表示单方向数据发送结束，后续不会再有数据帧。
+  - **PRIORITY** 表示流的优先级；
+
+### stream并发传输
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250116%E4%B8%8B%E5%8D%88105740039.png" alt="image-20250116下午105740039" style="zoom:50%;" />
+
+一个Message对应一个请求或响应，<u>不同stream下的frame可以乱序，同一个stream下的frame不可以乱序</u>
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250116%E4%B8%8B%E5%8D%88105935130.png" alt="image-20250116下午105935130" style="zoom:40%;" />
+
+- 并发比HTTP1.1好很多：**因为当 HTTP/2 实现 100 个并发 Stream 时，只需要建立一次 TCP 连接，而 HTTP/1.1 需要建立 100 个 TCP 连接，每个 TCP 连接都要经过 TCP 握手、慢启动以及 TLS 握手过程，这些都是很耗时的。**
+
+- 当 Stream ID 耗尽时，需要发一个控制帧 `GOAWAY`，用来关闭 TCP 连接
+
+- 在 Nginx 中，可以通过 `http2_max_concurrent_Streams` 配置来设置 Stream 的上限，默认是 128 个
+
+- HTTP/2 还可以对每个 Stream 设置不同**优先级**，帧头中的「标志位」可以设置优先级，比如客户端访问 HTML/CSS 和图片资源时，希望服务器先传递 HTML/CSS，再传图片，那么就可以通过设置 Stream 的优先级来实现，以此提高用户体验。
+
+  
+
+### 服务器推送
+
+服务器主动的推送，使用的是偶数号 Stream。服务器在推送资源时，会通过 `PUSH_PROMISE` 帧传输 HTTP 头部，并通过帧中的 `Promised Stream ID` 字段告知客户端，接下来会在哪个偶数号 Stream 中发送包体。
 
 ## HTTP3
 
