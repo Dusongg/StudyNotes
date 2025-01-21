@@ -23,7 +23,7 @@
 
 通过**减少中断频率**，结合**中断驱动和轮询机制**，提高网络数据包的处理效率并减少系统资源的开销。
 
-- 传统网络终端弊端：”中断风暴“
+- 传统网络终端弊端：<u>”中断风暴“</u>
 - NAPI优化：在接收到数据包时，最初仍通过中断方式通知内核。进入内核后，<u>中断被禁用</u>，改用<u>轮询方式批量处理数据包</u>（软中断）。
 
 #### 网络协议栈解析处理
@@ -87,6 +87,8 @@
 
 
 ### 常见字段
+
+ 	 	
 
 
 
@@ -160,6 +162,13 @@ DHE算法让双方的<u>私钥在每次密钥交换通信时，都是随机生�
 
 #### ECDHE算法
 
+> [!NOTE]
+>
+> 1. C-〉S：客户端随机数，支持的密码套件列表、TLS版本
+> 2. S-〉C：确认TLS版本、服务端随机数、选择的密码套件（椭圆曲线）、服务端证书、椭圆曲线共钥
+> 3. C-〉S：客户端椭圆曲线共钥、**Encrypted Handshake Message**（之前发送的数据做一个摘要，再用对称密钥加密一下）
+> 4. S-〉C：**Encrypted Handshake Message**
+
 - 双方事先确定好使用哪种椭圆曲线，和曲线上的基点 `G`，这两个参数都是公开的；
 - 双方各自随机生成一个随机数作为**私钥`d`**，并与基点 G相乘得到**公钥Q**（`Q = dG`），此时小红的公私钥为 Q1 和 d1，小明的公私钥为 Q2 和 d2；
 - 双方交换各自的公钥，最后小红计算点（x1，y1） = d1Q2，小明计算点（x2，y2） = d2Q1，由于椭圆曲线上是可以满足乘法交换和结合律，所以 d1Q2 = d1d2G = d2d1G = d2Q1 ，因此**双方的 x 坐标是一样的，所以它是共享密钥，也就是会话密钥**。
@@ -184,14 +193,14 @@ DHE算法让双方的<u>私钥在每次密钥交换通信时，都是随机生�
 
 **TLS1.2 ——〉TLS1.3**
 
-- 握手时延从`2RTT`降到`1RTT`
+- 握手时延从`2RTT`降到`1RTT`（客户端可以在 TLS 协议的第 3 次握手后，第 4 次握手前，发送加密的应用数据）
 
 
 
 #### 证书优化
 
 - **证书传输优化**：对于服务器的证书应该选择椭圆曲线（ECDSA）证书，而不是 RSA 证书，因为在相同安全强度下， ECC 密钥长度比 RSA 短的多。
-- 证书验证优化：
+- **证书验证优化**：
   - `CRL` 称为证书吊销列表（*Certificate Revocation List*），定时更新，实时性较差
   - `OCSP`在线证书状态协议（*Online Certificate Status Protocol*）来查询证书的有效性，它的工作方式是**向 CA 发送查询请求，让 CA 返回证书的有效状态**。：受网络因素影响较大
   - `OCSP Stapling`:为了解决这一个网络开销，就出现了 OCSP Stapling，其原理是：<u>服务器</u>向 CA 周期性地查询证书状态，获得一个带有**时间戳和签名**的响应结果并缓存它。<u>当有客户端发起连接请求时，服务器会把这个「响应结果」在 TLS 握手过程中发给客户端</u>。由于有签名的存在，服务器无法篡改，因此客户端就能得知证书是否已被吊销了，这样客户端就不需要再去查询。
@@ -284,7 +293,15 @@ DHE算法让双方的<u>私钥在每次密钥交换通信时，都是随机生�
 
 ## HTTP3
 
+> - HTTP/1.1 中的管道（ pipeline）虽然解决了请求的队头阻塞，但是**没有解决响应的队头阻塞**，因为服务端需要按顺序响应收到的请求，如果服务端处理某个请求消耗的时间比较长，那么只能等响应完这个请求后， 才能处理下一个请求，这属于 HTTP 层队头阻塞。
+> - HTTP/2 虽然通过多个请求复用一个 TCP 连接解决了 HTTP 的队头阻塞 ，但是**一旦发生丢包，就会阻塞住所有的 HTTP 请求**，这属于 TCP 层队头阻塞。
 
+QUIC 有以下 3 个特点。
+
+- 无队头阻塞
+- 更快的连接建立
+- 连接迁移
+- 
 
 ## RPC与HTTP区别
 
@@ -394,3 +411,134 @@ POST /createUser
   - **HTTP 是通信协议**，RESTful API 通常基于 HTTP，但 HTTP 风格不一定遵循 REST 的设计原则。
 
 **简单来说**：RESTful API 利用 HTTP 协议并通过设计原则提升了接口的规范性和易用性，而 HTTP 风格只是简单利用了协议本身，没有统一的设计理念。
+
+
+
+
+
+
+
+# TCP
+
+## 基础认识
+
+### 序列号的作用
+
+去重、按序接收、标识哪些数据包是被对方接受了的
+
+### 为什么不是两次/四次握手
+
+- 避免历史链接
+- 同步序列号
+- 避免服务端资源浪费
+
+### 初始化序列号为什么要不一样
+
+- 避免历史数据（相同四元组）
+- 防止第三方伪造数据
+
+### IP层会以MTU分片为什么TCP层还要MSS
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250117%E4%B8%8B%E5%8D%8894057892.png" alt="image-20250117下午94057892" style="zoom:50%;" />
+
+- **那么当如果一个 IP 分片丢失，整个 IP 报文的所有分片都得重传**
+
+当某一个 IP 分片丢失后，接收方的 IP 层就无法组装成一个完整的 TCP 报文（头部 + 数据），也就无法将数据报文送到 TCP 层，所以接收方不会响应 ACK 给发送方，因为发送方迟迟收不到 ACK 确认报文，所以会触发超时重传，就会重发「整个 TCP 报文（头部 + 数据）」。
+
+
+
+### 什么是SYN攻击，如何避免
+
+- 增大SYN队列长度
+- 开启syncookies
+- 减少SYN + ACK重传次数
+
+
+
+### close与shutdown区别
+
+![image-20250121下午113152974](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250121%E4%B8%8B%E5%8D%88113152974.png)
+
+- `shutdown`常用于实现半关闭状态
+
+```cpp
+int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr));
+
+// 关闭写方向，通知对方数据发送完毕，但仍然可以接收数据
+shutdown(sockfd, SHUT_WR);
+
+// 处理接收的数据
+char buffer[1024];
+recv(sockfd, buffer, sizeof(buffer), 0);
+
+// 最终完全关闭套接字
+close(sockfd);
+```
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250117%E4%B8%8B%E5%8D%88104032338.png" alt="image-20250117下午104032338" style="zoom:25%;" />
+
+- `close`:每次一个进程或线程调用 close，引用计数会减少。**只有当引用计数归零时，内核才会释放套接字及其资源**。
+
+
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250117%E4%B8%8B%E5%8D%88104020065.png" alt="image-20250117下午104020065" style="zoom:25%;" />
+
+
+
+### TIME_WAIT相关
+
+#### TIME_WAIT有什么用，为什么要是2MSL
+
+
+
+#### TIME_WAIT过多的危害
+
+- 系统资源
+- 端口资源
+  - 客户端：TIME_WAIT过多导致端口用完了，如果 目的ip + 目的port一样则可以复用、反之则不能
+  - 服务端：TIME_WAIT过多并不会导致端口资源受限
+
+#### 如何优化TIME_WAIT
+
+- 打开 net.ipv4.tcp_tw_reuse 和 net.ipv4.tcp_timestamps 选项；
+- net.ipv4.tcp_max_tw_buckets
+- 程序中使用 SO_LINGER ，应用强制使用 RST 关闭。
+
+#### 服务端出现大量TIME_WAIT的原因
+
+- **没有使用HTTP长链接**：任意一方没有开启 HTTP Keep-Alive，都会导致**服务端**在处理完一个 HTTP 请求后，就主动关闭连接
+- **长链接超时**：`nginx`的`keepalive_timeout`参数
+- **长链接数量达到上限**：`nginx` 的 `keepalive_requests` 参数
+
+
+
+#### 服务端出现大量CLOSE_WAIT
+
+https://mp.weixin.qq.com/s?__biz=MzU3Njk0MTc3Ng==&mid=2247486020&idx=1&sn=f7cf41aec28e2e10a46228a64b1c0a5c&scene=21#wechat_redirect
+
+
+
+### TCP保活机制
+
+- 开启：socket接口需设置`SO_KEEPALIVE`
+
+- 一段时间没有活跃，开始保活机制，发送探测报文
+
+  ```
+  tcp_keepalive_time=7200：表示保活时间是 7200 秒（2小时），也就 2 小时内如果没有任何连接相关的活动，则会启动保活机制
+  tcp_keepalive_intvl=75：表示每次检测间隔 75 秒；
+  tcp_keepalive_probes=9：表示检测 9 次无响应，认为对方是不可达的，从而中断本次的连接
+  ```
+
+1. **对方主机仍然在线，但应用已关闭或端口未打开**：内核会直接回复一个 **RST 报文**，表明当前端口无法处理该连接。
+
+2. **对方主机宕机**：没有响应
+
+
+
+### socket下的tcp
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250122%E4%B8%8A%E5%8D%88122720640.png" alt="image-20250122上午122720640" style="zoom:50%;" />
+
+服务端接收到了 FIN 报文，TCP 协议栈会为 FIN 包插入一个文件结束符 `EOF` 到接收缓冲区中，应用程序可以通过 `read` 调用来感知这个 FIN 包。
