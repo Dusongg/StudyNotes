@@ -542,3 +542,175 @@ https://mp.weixin.qq.com/s?__biz=MzU3Njk0MTc3Ng==&mid=2247486020&idx=1&sn=f7cf41
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250122%E4%B8%8A%E5%8D%88122720640.png" alt="image-20250122上午122720640" style="zoom:50%;" />
 
 服务端接收到了 FIN 报文，TCP 协议栈会为 FIN 包插入一个文件结束符 `EOF` 到接收缓冲区中，应用程序可以通过 `read` 调用来感知这个 FIN 包。
+
+
+
+## TCP的可靠性
+
+### 超时重传与快速重传
+
+**超时重传：**
+
+- 超时重传时间以 `RTO` （Retransmission Timeout 超时重传时间）表示，**超时重传时间 RTO 的值应该略大于报文往返 RTT 的值**
+- RTO时间应该是动态变化的，**每当遇到一次超时重传的时候，都会将下一次超时时间间隔设为先前值的两倍。两次超时，就说明网络环境差，不宜频繁反复发送**
+
+**快速重传：**
+
+- 一般方法：三个相同ACK重传，但是不知道改重传一个还是后面的所有
+
+- `SACK`(Selective Acknowledgment)：
+
+  这种方式需要在 TCP 头部「选项」字段里加一个 `SACK` 的东西，它**可以将已收到的数据的信息发送给「发送方」**
+
+  <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250122%E4%B8%8B%E5%8D%8815506456.png" alt="image-20250122下午15506456" style="zoom:50%;" />
+
+- Duplicate SACK(`D-SACK`)
+
+  **使用了 SACK 来告诉「发送方」有哪些数据被重复接收了**，<u>是因为ACK丢失</u>，<u>还是发送发网络延时</u>
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250122%E4%B8%8B%E5%8D%8820513460.png" alt="image-20250122下午20513460" style="zoom:50%;" />
+
+### 滑动窗口
+
+#### 窗口关闭的风险
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250122%E4%B8%8B%E5%8D%8821937922.png" alt="image-20250122下午21937922" style="zoom:50%;" />
+
+#### 窗口探测报文
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250122%E4%B8%8B%E5%8D%8822300506.png" alt="image-20250122下午22300506" style="zoom:50%;" />
+
+窗口探测的次数一般为 3 次，每次大约 30-60 秒（不同的实现可能会不一样）。如果 3 次过后接收窗口还是 0 的话，有的 TCP 实现就会发 `RST` 报文来中断连接。
+
+#### 糊涂窗口综合症
+
+- 什么是：接收方的接收窗口（rwnd）很小，无法容纳一个足够大的数据段。一旦有少量空间释放（例如几个字节），接收方立即通知发送方更新窗口大小。
+
+- 怎么解决：
+
+  - Nagle算法：
+
+    ```c++
+    if 有数据要发送 {
+        if 可用窗口大小 >= MSS and 可发送的数据 >= MSS {
+        	立刻发送MSS大小的数据
+        } else {
+            if 有未确认的数据 {
+                将数据放入缓存等待接收ACK
+            } else {
+                立刻发送数据
+            }
+        }
+    }
+    ```
+
+    
+
+
+
+
+
+### 拥塞控制
+
+#### 有了流量控制为什么还要有拥塞控制？
+
+流量控制是避免「发送方」的数据填满「接收方」的缓存，但是并不知道网络的中发生了什么。
+
+**在网络出现拥堵时，如果继续发送大量数据包，可能会导致数据包时延、丢失等，这时 TCP 就会重传数据，但是一重传就会导致网络的负担更重**
+
+
+
+#### 拥塞控制算法
+
+- 慢启动
+
+- 拥塞避免：每当收到一个 ACK时，cwnd增加1/cwnd
+
+- 拥塞发生
+
+  - 发生超时重传：1️⃣`ssthresh` 设为 `cwnd/2` 2️⃣`cwnd` 重置为 `1` （是恢复为 cwnd 初始化值，假定 cwnd 初始化值 1）
+  - 发生快速重传：1️⃣`cwnd = cwnd/2`，2️⃣`ssthresh = cwnd`，3️⃣进入快速恢复
+
+- 快速恢复
+
+  快速重传和快速恢复算法一般同时使用，快速恢复算法是认为，你还能收到 3 个重复 ACK 说明网络也不那么糟糕，所以没有必要像 `RTO` 超时那么强烈。
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250123%E4%B8%8B%E5%8D%8883046326.png" alt="image-20250123下午83046326" style="zoom:50%;" />
+
+
+
+
+
+## 端口复用相关
+
+### TCP与UDP能否绑定相同端口
+
+
+
+### 多个TCP服务绑定能否同一个端口？
+
+
+
+SO_REUSEADDR 作用：**如果当前启动进程绑定的 IP+PORT 与处于TIME_WAIT 状态的连接占用的 IP+PORT 存在冲突，但是新启动的进程使用了 SO_REUSEADDR 选项，那么该进程就可以绑定成功**
+
+### 客户端端口重复使用？
+
+#### 多个客户端可以 bind 同一个端口吗？
+
+而如果我们想自己指定连接的端口，就可以用 bind 函数来实现：<u>客户端先通过 bind 函数绑定一个端口，然后调用 connect 函数就会跳过端口选择的过程了，转而使用 bind 时确定的端口</u>。
+
+
+
+#### 客户端TIME）WAIT过多
+
+举个例子，假设客户端已经与服务器建立了一个 TCP 连接，并且这个状态处于 TIME_WAIT 状态：
+
+```bash
+客户端地址:端口           服务端地址:端口         TCP 连接状态
+192.168.1.100:2222      172.19.11.21:8888     TIME_WAIT
+```
+
+然后客户端又与该服务器（172.19.11.21:8888）发起了连接，**在调用 connect 函数时，内核刚好选择了 2222 端口，接着发现已经被相同四元组的连接占用了：**
+
+- 如果**没有开启** `net.ipv4.tcp_tw_reuse` 内核参数，那么内核就会选择下一个端口，然后继续判断，直到找到一个没有被相同四元组的连接使用的端口， 如果端口资源耗尽还是没找到，那么 connect 函数就会返回错误。
+- 如果**开启**了 `net.ipv4.tcp_tw_reuse` 内核参数，就会判断该四元组的连接状态是否处于 TIME_WAIT 状态，**如果连接处于 TIME_WAIT 状态并且该状态持续的时间超过了 1 秒，那么就会重用该连接**，于是就可以使用 2222 端口了，这时 connect 就会返回成功。
+
+再次提醒一次，开启了 `net.ipv4.tcp_tw_reuse` 内核参数，是客户端（连接发起方） 在调用 connect() 函数时才起作用，所以在服务端开启这个参数是没有效果的。
+
+
+
+
+
+
+
+## [tcp思维导图](../笔试面试总结/TCP建立链接前后异常问题.xmind)
+
+# IP
+
+
+
+- DHCP客户端端口：68， DHCP服务端端口：67
+- DNS端口：53
+
+
+
+## ICMP
+
+- ICMP功能：**确认 IP 包是否成功送达目标地址、报告发送过程中 IP 包被废弃的原因和改善网络设置等。**
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250124%E4%B8%8B%E5%8D%8830530839.png" alt="image-20250124下午30530839" style="zoom:50%;" />
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250123%E4%B8%8B%E5%8D%88111812983.png" alt="image-20250123下午111812983" style="zoom:50%;" />
+
+## ping的工作原理
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250124%E4%B8%8B%E5%8D%8821915857.png" alt="image-20250124下午21915857" style="zoom:50%;" />
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250124%E4%B8%8B%E5%8D%8822115556.png" alt="image-20250124下午22115556" style="zoom:50%;" />
+
+
+
+### 为什么断网了还能ping通127.0.0.1
+
+当发现IP是回环地址时会讲数据发送到**`input_pkt_queue` 的 链表 中。这个链表，其实是所有网卡共享的，上面挂着发给本机的各种消息。消息被发送到这个链表后，会再触发一个软中断**
+
