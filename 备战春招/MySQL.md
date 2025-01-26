@@ -23,7 +23,7 @@
 
 ![image-20250124下午83624930](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250124%E4%B8%8B%E5%8D%8883624930.png)
 
-
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250126%E4%B8%8B%E5%8D%88113105092.png" alt="image-20250126下午113105092" style="zoom:50%;" />
 
 ## 一条SQL语句执行顺序
 
@@ -306,3 +306,83 @@ CREATE TABLE orders (
 
 ## 死锁
 
+![image-20250126下午30640397](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250126%E4%B8%8B%E5%8D%8830640397.png)
+
+1. 相同间隙锁可以共存：**间隙锁的意义只在于阻止区间被插入**，因此是可以共存的。**一个事务获取的间隙锁不会阻止另一个事务获取同一个间隙范围的间隙锁**（相同next-lock会被阻塞）
+
+2. 同一个事务下不会被锁阻塞
+
+
+
+
+
+# 日志
+
+## undo log
+
+- undo log刷盘：
+
+> undo log 和数据页的刷盘策略是一样的，都需要通过 redo log 保证持久化。
+>
+> buffer pool 中有 undo 页，对 undo 页的修改也都会记录到 redo log。redo log 会每秒刷盘，提交事务时也会刷盘，数据页和 undo 页都是靠这个机制保证持久化的。
+
+
+
+## redo log
+
+- **redo log** 是一种用于实现 **事务持久性** 和 **故障恢复** 的日志机制，存放数据页做了什么修改
+
+- WAL（Write-Ahead Logging）：**MySQL 的写操作并不是立刻写到磁盘上，而是先写日志，然后在合适的时间再写到磁盘上**。
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250126%E4%B8%8B%E5%8D%8893719333.png" alt="image-20250126下午93719333" style="zoom:50%;" />
+
+### redo log 的作用
+
+1. **持久性保证**：即使在数据库崩溃后，redo log 也能通过重新应用日志中的操作来恢复数据，使数据库处于一致的状态。
+
+2. **性能优化**：事务提交时，不需要立即将数据刷入磁盘，而是先记录到 redo log 中，这种方式称为**预写日志（Write-Ahead Logging, WAL）**。
+
+### redo log 的工作原理
+
+1. **写入 redo log buffer**：当事务执行时，数据的更改操作会先写入到内存中的 **redo log buffer**。
+2. **刷入 redo log 文件**：数据最终会以顺序写的方式刷入磁盘上的 redo log 文件（称为 `ib_logfile0` 和 `ib_logfile1`）。
+3. **事务提交**：在事务提交前，InnoDB 会确保与该事务相关的所有 redo log 都已经写入到磁盘，保证数据的安全性。
+4. **崩溃恢复**：如果数据库异常宕机，InnoDB 会在重启时从 redo log 中读取记录，重新应用尚未完成的操作。
+
+- redo log与 undo log的区别
+
+  - redo log 记录了此次事务「**修改后**」的数据状态，记录的是更新**之后**的值，**主要用于事务崩溃恢复，保证事务的持久性**。
+
+  - undo log 记录了此次事务「**修改前**」的数据状态，记录的是更新**之前**的值，**主要用于事务回滚，保证事务的原子性**。
+
+### redo log刷盘时机
+
+- MySQL 正常关闭时；
+- 当 redo log buffer 中记录的写入量大于 redo log buffer 内存空间的一半时，会触发落盘；
+- InnoDB 的后台线程每隔 1 秒，将 redo log buffer 持久化到磁盘。
+- 每次事务提交时都将缓存在 redo log buffer 里的 redo log 直接持久化到磁盘（这个策略可由 `innodb_flush_log_at_trx_commit` 参数控制，下面会说）。
+
+>  `innodb_flush_log_at_trx_commit` :
+>
+> - 当设置该**参数为 0 时**，表示每次事务提交时 ，还是**将 redo log 留在 redo log buffer 中** ，该模式下在事务提交时不会主动触发写入磁盘的操作。
+> - （默认）当设置该**参数为 1 时**，表示每次事务提交时，都**将缓存在 redo log buffer 里的 redo log 直接持久化到磁盘**，这样可以保证 MySQL 异常重启之后数据不会丢失。
+> - 当设置该**参数为 2 时**，表示每次事务提交时，都只是缓存在 redo log buffer 里的 redo log **写到 redo log 文件，注意写入到「 redo log 文件」并不意味着写入到了磁盘**，因为操作系统的文件系统中有个 Page Cache
+
+
+
+
+
+### redo log 文件满了怎么办
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250126%E4%B8%8B%E5%8D%88101949127.png" alt="image-20250126下午101949127" style="zoom:50%;" />
+
+
+
+## bin log
+
+### binlog与redo log区别
+
+- 格式
+- 适用对象：binlog是server层概念，redo log是存储引擎层概念
+- 写入方式
+- 用途
