@@ -422,6 +422,10 @@ POST /createUser
 
 ## 基础认识
 
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250127%E4%B8%8A%E5%8D%88121800845.png" alt="image-20250127上午121800845" style="zoom:50%;" />
+
+
+
 ### 序列号的作用
 
 去重、按序接收、标识哪些数据包是被对方接受了的

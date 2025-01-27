@@ -490,8 +490,6 @@ redis-cli --cluster reshard ip:port
 
 - 该配置重启会恢复，要用就配置可以修改配置文件
 
-### ![image-20240503234718070](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20240503234718070.png)
-
 - 其他命令
 
 ![image-20240504000236684](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240504000236684.png)
