@@ -386,3 +386,75 @@ CREATE TABLE orders (
 - 适用对象：binlog是server层概念，redo log是存储引擎层概念
 - 写入方式
 - 用途
+
+
+
+
+
+### undo log 、redo log、binlog刷盘时机
+
+#### 1. **Undo Log**
+- **作用**：支持事务回滚和MVCC（多版本并发控制），记录数据修改前的旧版本。
+- **刷盘时机**：
+  - Undo log的修改会被记录到**redo log**中，因此其持久化依赖于redo log的刷盘机制。
+  - 当事务提交时，若redo log根据配置刷盘（如`innodb_flush_log_at_trx_commit=1`），则undo log的修改也会随redo log一起持久化到磁盘。
+  - **注意**：Undo log本身并不直接刷盘，而是通过redo log间接保证其持久性。其空间复用和清理由后台线程管理，与事务提交无直接关联。
+
+---
+
+#### 2. **Redo Log**
+- **作用**：确保事务的持久性，记录物理修改，用于崩溃恢复。
+- **刷盘时机**：
+  - 由参数`innodb_flush_log_at_trx_commit`控制：
+    - **1（默认）**：事务提交时，强制将redo log buffer刷到磁盘。
+    - **0**：每秒刷盘一次，不保证事务提交时刷盘（可能丢失最近1秒的数据）。
+    - **2**：事务提交时仅写入OS缓存，由系统决定刷盘时机（若系统崩溃可能丢失数据）。
+  - 后台线程也会定期刷盘，即使事务未提交。
+
+---
+
+#### 3. **Binlog**
+- **作用**：记录逻辑操作（如SQL语句或行变更），用于主从复制和数据恢复。
+- **刷盘时机**：
+  - 由参数`sync_binlog`控制：
+    - **0**：依赖文件系统自行刷盘，可能丢失数据。
+    - **1（推荐）**：事务提交时强制刷盘，保证数据不丢失。
+    - **N**：每N次事务提交后刷盘一次（折中方案，但仍可能丢失N次提交的数据）。
+
+### 两阶段提交
+
+#### 为什么要？解决了什么问题？
+
+  - **问题**：事务提交时，需保证 redo log 和 binlog 的写入完全一致，否则会导致数据丢失或主从不一致。
+   - **解决**：通过两阶段提交，将 redo log 和 binlog 的写入绑定为一个原子操作。
+
+| 场景                                                         | 结果                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 1. **先写 redo log，后写 binlog**：<br>若 binlog 写入前崩溃  | - redo log 已提交，但 binlog 缺失<br>**主从数据不一致**（从库丢失事务） |
+| 2. **先写 binlog，后写 redo log**：<br>若 redo log 写入前崩溃 | - binlog 已写入，但 redo log 未提交<br>**主库数据丢失，从库多出事务** |
+
+**两阶段提交通过以下逻辑解决这些问题**：
+
+- **崩溃恢复时**：
+  1. 检查 redo log 的 `prepare` 状态事务。
+  2. 若对应的 binlog 存在且完整，提交事务（重放 redo log）。
+  3. 若 binlog 不完整，回滚事务（丢弃 redo log）。
+
+#### 具体步骤？
+
+以 MySQL 单机事务为例（协调 redo log 和 binlog）：
+
+1. **Prepare 阶段（准备阶段）**  
+   - InnoDB 将事务的 redo log 标记为 **`prepare` 状态**，并刷盘（根据 `innodb_flush_log_at_trx_commit` 参数决定是否强制刷盘）。
+   - 此时事务已持久化到 redo log，但尚未提交。
+
+2. **Write & Sync Binlog 阶段**  
+   - MySQL Server 将事务的 SQL 操作写入 binlog，并根据 `sync_binlog` 参数决定是否刷盘。
+   - 若 `sync_binlog=1`，强制刷盘以保证 binlog 持久化。
+
+3. **Commit 阶段（提交阶段）**  
+   - InnoDB 将 redo log 标记为 **`commit` 状态**，事务正式提交。
+   - 根据 `innodb_flush_log_at_trx_commit` 参数，可能再次刷盘 redo log。
+
+
+

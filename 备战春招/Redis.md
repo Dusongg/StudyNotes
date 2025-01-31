@@ -114,7 +114,7 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (interface{}, err
 
 - 缓存更新策略？
 - 旁路缓存策略实现？
-- 如何保证两个操作的原子性？
+- 如何保证两个操作（删缓存 + 改数据库）的原子性？：1️⃣消息队列2️⃣订阅binlog3️⃣TCC
 
 
 
@@ -130,7 +130,13 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (interface{}, err
 
 - RDB
 - AOF
-- 混合：混合持久化工作在 **AOF 日志重写过程**，当开启了混合持久化时，在 AOF 重写日志时，fork 出来的重写子进程会先将与主线程共享的内存数据以 RDB 方式写入到 AOF 文件，然后主线程处理的操作命令会被记录在重写缓冲区里，重写缓冲区里的增量命令会以 AOF 方式写入到 AOF 文件，写入完成后通知主进程将新的含有 RDB 格式和 AOF 格式的 AOF 文件替换旧的的 AOF 文件。
+- 混合持久化
+  - 效果：结合 RDB 的高效恢复能力和 AOF 的数据完整性
+  - 原理：
+    - 混合持久化工作在 **AOF 日志重写（`bgrewriteaof`）过程**，当开启了混合持久化时（`aof-use-rdb-preamble yes`）
+    - 在 AOF 重写日志时，fork 出来的重写子进程会先将与主线程共享的内存数据以 RDB 方式写入到 AOF 文件，
+    - 然后主线程处理的操作命令会被记录在重写缓冲区里，重写缓冲区里的增量命令会以 AOF 方式写入到 AOF 文件
+
 
 
 
