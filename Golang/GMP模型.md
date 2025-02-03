@@ -17,7 +17,7 @@
 1. 当程序启动时，Go 运行时会初始化一组 P（逻辑处理器），P 的数量可以通过 `runtime.GOMAXPROCS` 设置，默认值是系统 CPU 核心数。
 2. Goroutine 被创建时，运行时会将它放入某个 P 的本地队列中。
 3. M 是操作系统的线程，当 M 启动时，它需要与一个 P 关联才能开始执行 Goroutine。P 决定将哪些 Goroutine 分配给 M 运行。
-4. 如果 M 发现 P 的队列中没有可运行的 Goroutine，它会尝试从其他 P 的队列中窃取 Goroutine 来执行，这称为工作窃取（work stealing）。
+4. 如果 M 发现 P 的队列中没有可运行的 Goroutine，它会尝试从其他 P 的队列中窃取 Goroutine 来执行，这称为工作窃取（**work stealing**）。
 5. 当一个 M 处于 I/O 阻塞状态或发生系统调用时，M 会释放 P，让其他 M 可以利用这个 P 继续执行 Goroutine。
 6. 如果没有足够的 M 来运行 P 队列中的任务，Go 运行时会动态创建新的 M，反之如果有多余的 M，M 也会被销毁。
 
