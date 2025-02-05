@@ -116,7 +116,7 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (interface{}, err
 - 旁路缓存策略实现？
 - 如何保证两个操作（删缓存 + 改数据库）的原子性？：1️⃣消息队列2️⃣订阅binlog3️⃣TCC
 
-
+ 
 
 
 
@@ -128,23 +128,31 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (interface{}, err
 
 # 持久化策略
 
-- RDB
-- AOF
-- 混合持久化
-  - 效果：结合 RDB 的高效恢复能力和 AOF 的数据完整性
-  - 原理：
-    - 混合持久化工作在 **AOF 日志重写（`bgrewriteaof`）过程**，当开启了混合持久化时（`aof-use-rdb-preamble yes`）
-    - 在 AOF 重写日志时，fork 出来的重写子进程会先将与主线程共享的内存数据以 RDB 方式写入到 AOF 文件，
-    - 然后主线程处理的操作命令会被记录在重写缓冲区里，重写缓冲区里的增量命令会以 AOF 方式写入到 AOF 文件
+## RDB
 
+## AOF
 
+## 混合持久化
+
+- 效果：结合 RDB 的高效恢复能力和 AOF 的数据完整性
+- **生成方式**：
+  - 当开启混合持久化并触发AOF重写时，Redis会**先以RDB格式生成当前内存的快照**，作为持久化文件的前半部分。
+  - 重写期间的新增写操作命令会以**AOF格式**继续追加到文件末尾，形成完整的持久化文件（`appendonly.aof`）。
+
+- **性能影响**：
+
+  - RDB生成期间可能短暂阻塞主线程（尤其在数据量大时），建议在低峰期操作。
+
+  - AOF增量命令的追加对性能影响较小（依赖磁盘写入策略，如`appendfsync`配置为`everysec`平衡性能与安全。
 
 
 # 其他
 
 ## 本地缓存与Redis缓存的区别
 
-
+- redis实现多种数据结构，优化内存存储
+- redis基于内存操作对外提供kv操作，可 处理多个主机的请求
+- 在分布式场景下redis实现了高可用、可拓展
 
 
 

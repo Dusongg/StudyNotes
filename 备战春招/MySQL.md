@@ -122,8 +122,7 @@ CREATE TABLE orders (
 );
 ```
 
-5. 优化复合索引(联合索引)顺序
-6. 将选择性高的列放在前面（选择性 = 不重复值的数量 / 总记录数）。
+5. 优化复合索引(联合索引)顺序，将选择性高的列放在前面（选择性 = 不重复值的数量 / 总记录数）。
 
 > 假设数据特点如下：
 >
@@ -137,7 +136,22 @@ CREATE TABLE orders (
 >
 > ```mysql
 > CREATE INDEX idx_age_city ON users (age, city);
+> 
 > ```
+>
+> 例如：
+>
+>          [ (5, 2) (10, 1) (15, 3) ]
+>               /       |       \
+>        ---------  ---------  ---------
+>        (1, 4)    (10, 1)   (20, 5)
+>        (5, 2)    (10, 10)  (15, 3)
+>        (5, 8)    (10, 20)  (20, 30)
+>     对于 SELECT * FROM table WHERE A = 10 AND B = 20;：
+>     1️⃣ B+ 树根据 A=10 快速定位到索引范围的起始位置。
+>     2️⃣ 在叶子节点中，按 B 递增排序查找 B=20，通常只需少量顺序扫描。
+>     3️⃣ 如果索引是覆盖索引，直接返回结果；否则，回表查询完整数据。
+>     
 
 7. 根据查询条件的使用频率调整顺序。例如，WHERE column1 = ? AND column2 > ? 时，将 column1 放在前面。
 8. 索引最好设置为NOT NULL
@@ -147,9 +161,8 @@ CREATE TABLE orders (
 
 ## 什么字段适合用索引
 
-- 选择性高的字段（重复数量较小）
+- 选择性高的字段（重复数量较小）——有唯一性约束的字段
 - 常用于where语句的字段
-- 有唯一性约束的字段
 - 常用于group by / distinct / join / order by
 
 ### 什么字段不适合
@@ -185,11 +198,11 @@ CREATE TABLE orders (
 
   - 原子性：一个事务中的所有操作，要么全部完成，要么全部不完成 —— undo log（回滚日志）
 
-  - 一致性：是指事务操作前和操作后，数据满足完整性约束，数据库保持一致性状态
+  - 一致性：是指事务操作前和操作后，数据满足完整性约束，数据库保持一致性状态 —— redo log（重做日志）
 
   - 隔离性：多个事务间操作隔离 —— MVCC / 锁
 
-  - 持久性：事务处理之后，对数据的操作是永久的 —— redo log（重做日志）
+  - 持久性：事务处理之后，对数据的操作是永久的
 
 - 事务引发的问题
   - 脏读：读到未提交的数据（数据会滚导致前后不一致）
@@ -210,6 +223,14 @@ CREATE TABLE orders (
 ## Read View工作原理
 
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250125%E4%B8%8B%E5%8D%88114936838.png" alt="image-20250125下午114936838" style="zoom:50%;" />
+
+m_ids：当前数据库中「活跃事务」的**事务 id 列表**
+
+min_trx_id：当前数据库中「活跃事务」中事务 **id 最小的事务**
+
+max_trx_id：这个并不是 m_ids 的最大值，而是**创建 Read View 时当前数据库中应该给下一个事务的 id 值**，也就是全局事务中最大的事务 id 值 + 1；
+
+
 
 - trx_id < min_trx_id：可见
 
@@ -253,6 +274,51 @@ CREATE TABLE orders (
 # 锁
 
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250126%E4%B8%8A%E5%8D%88120547954.png" alt="image-20250126上午120547954" style="zoom: 33%;" />
+
+## 全局锁
+
+
+
+## 表级锁
+
+1️⃣ **表锁**
+
+```mysql
+//表级别的共享锁，也就是读锁；
+//允许当前会话读取被锁定的表，但阻止其他会话对这些表进行写操作。
+lock tables t_student read;
+
+//表级别的独占锁，也就是写锁；
+//允许当前会话对表进行读写操作，但阻止其他会话对这些表进行任何操作（读或写）。
+lock tables t_stuent write;
+```
+
+2️⃣ **元数据锁**
+
+当我们对数据库表进行操作时，会自动给这个表加上 MDL：**事务执行期间，MDL 是一直持有的**
+
+- 对一张表进行 CRUD 操作时，加的是 **MDL 读锁**；
+- 对一张表做结构变更操作的时候，加的是 **MDL 写锁**；
+
+⚠️申请 MDL 锁的操作会形成一个队列，队列中**写锁获取优先级高于读锁**，一旦出现 MDL 写锁等待，会阻塞后续该表的所有 CRUD 操作。
+
+
+
+3️⃣ **意向锁**
+
+```mysql
+//先在表上加上意向共享锁，然后对读取的记录加共享锁
+select ... lock in share mode;
+
+//先表上加上意向独占锁，然后对读取的记录加独占锁
+select ... for update;
+```
+
+意向共享锁和意向独占锁是表级锁，只会和共享表锁（lock tables ... read）和独占表锁（lock tables ... write）发生冲突。
+
+**意向锁的目的是为了快速判断表里是否有记录被加锁**（不用去遍历表里的所有记录）
+
+## 行级锁
 
 **加锁的对象是索引，加锁的基本单位是 next-key lock**，它是由记录锁和间隙锁组合而成的，**next-key lock 是前开后闭区间，而间隙锁是前开后开区间**。
 
@@ -314,7 +380,29 @@ CREATE TABLE orders (
 
 
 
+## 如何避免MySQL死锁
 
+1️⃣添加事务超时时间**设置合理的 innodb_lock_wait_timeout**
+
+​	**MySQL 默认事务等待锁的时间是 50 秒 (innodb_lock_wait_timeout = 50)**，如果锁被长时间占用，可能导致大量事务阻塞。**建议将 innodb_lock_wait_timeout 设为一个合适的值**，避免长时间等待。
+
+2️⃣ **保证事务访问表的顺序一致**
+
+```mysql
+-- 事务 A
+BEGIN;
+UPDATE table1 SET col = 'X' WHERE id = 1;
+UPDATE table2 SET col = 'Y' WHERE id = 2;
+COMMIT;
+
+-- 事务 B
+BEGIN;
+UPDATE table2 SET col = 'Z' WHERE id = 2;
+UPDATE table1 SET col = 'W' WHERE id = 1;
+COMMIT;
+```
+
+3️⃣ 减少锁定行数
 
 # 日志
 
@@ -364,9 +452,9 @@ CREATE TABLE orders (
 
 >  `innodb_flush_log_at_trx_commit` :
 >
-> - 当设置该**参数为 0 时**，表示每次事务提交时 ，还是**将 redo log 留在 redo log buffer 中** ，该模式下在事务提交时不会主动触发写入磁盘的操作。
-> - （默认）当设置该**参数为 1 时**，表示每次事务提交时，都**将缓存在 redo log buffer 里的 redo log 直接持久化到磁盘**，这样可以保证 MySQL 异常重启之后数据不会丢失。
-> - 当设置该**参数为 2 时**，表示每次事务提交时，都只是缓存在 redo log buffer 里的 redo log **写到 redo log 文件，注意写入到「 redo log 文件」并不意味着写入到了磁盘**，因为操作系统的文件系统中有个 Page Cache
+> - 当设置该**参数为 0 时**，事务提交时不会主动触发写入磁盘的操作。
+> - （默认）当设置该**参数为 1 时**，表示每次事**务提交时**，都将缓存在 redo log buffer 里的 redo log 直接持久化到磁盘。
+> - **参数为 2 时**，表示每次事务提交时，都只是缓存在 redo log buffer 里的 redo log **写到 redo log 文件，注意写入到「 redo log 文件」并不意味着写入到了磁盘**，因为操作系统的文件系统中有个 Page Cache
 
 
 
@@ -385,7 +473,7 @@ CREATE TABLE orders (
 - 格式
 - 适用对象：binlog是server层概念，redo log是存储引擎层概念
 - 写入方式
-- 用途
+- 用途：redolog：故障恢复 + 事务持久性， undolog：数据恢复 + 主从复制
 
 
 
@@ -446,13 +534,11 @@ CREATE TABLE orders (
 
 1. **Prepare 阶段（准备阶段）**  
    - InnoDB 将事务的 redo log 标记为 **`prepare` 状态**，并刷盘（根据 `innodb_flush_log_at_trx_commit` 参数决定是否强制刷盘）。
-   - 此时事务已持久化到 redo log，但尚未提交。
-
-2. **Write & Sync Binlog 阶段**  
-   - MySQL Server 将事务的 SQL 操作写入 binlog，并根据 `sync_binlog` 参数决定是否刷盘。
-   - 若 `sync_binlog=1`，强制刷盘以保证 binlog 持久化。
-
+   
+   - MySQL Server 将事务的 SQL 操作写入 binlog，并根据 `sync_binlog` 参数决定是否刷盘。若 `sync_binlog=1`，强制刷盘以保证 binlog 持久化。
+   
 3. **Commit 阶段（提交阶段）**  
+   
    - InnoDB 将 redo log 标记为 **`commit` 状态**，事务正式提交。
    - 根据 `innodb_flush_log_at_trx_commit` 参数，可能再次刷盘 redo log。
 

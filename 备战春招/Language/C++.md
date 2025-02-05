@@ -741,7 +741,7 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 >
 >    ```bash
 >    g++ -c main.s -o main.o
->                
+>                   
 >    objdump -d main.o  #机械码文件通过objdump查看
 >    ```
 >
@@ -790,6 +790,7 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 
 - 保证每个对象有独立的地址，
 - 保证内存布局合理，比如对象数组
+- 1个字节不存放任何东西
 
 > [!NOTE]
 >
@@ -799,10 +800,10 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 >
 >   ```cpp
 >   #include <iostream>
->     
+>       
 >   class Empty {};
 >   class Derived : public Empty {};
->     
+>       
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;

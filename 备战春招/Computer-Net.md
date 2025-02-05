@@ -136,7 +136,7 @@
 
 
 
-### TLS/RSA握手
+### 🌟基于TLS1.2的RSA握手
 
 传统的 TLS 握手基本都是使用 RSA 算法来实现密钥交换
 
@@ -149,6 +149,10 @@
   因为客户端传递随机数pre_master（用于生成对称加密密钥的条件之一）给服务端时使用的是公钥加密的，服务端收到后，会用私钥解密得到随机数。所以一旦服务端的私钥泄漏了，过去被第三方截获的所有 TLS 通讯密文都会被破解。
 
   为了解决这个问题，后面就出现了 ECDHE 密钥协商算法
+
+
+
+
 
 
 
@@ -196,6 +200,89 @@ DHE算法让双方的<u>私钥在每次密钥交换通信时，都是随机生�
 - 双方事先确定好使用哪种椭圆曲线，和曲线上的基点 `G`，这两个参数都是公开的；
 - 双方各自随机生成一个随机数作为**私钥`d`**，并与基点 G相乘得到**公钥Q**（`Q = dG`），此时小红的公私钥为 Q1 和 d1，小明的公私钥为 Q2 和 d2；
 - 双方交换各自的公钥，最后小红计算点（x1，y1） = d1Q2，小明计算点（x2，y2） = d2Q1，由于椭圆曲线上是可以满足乘法交换和结合律，所以 d1Q2 = d1d2G = d2d1G = d2Q1 ，因此**双方的 x 坐标是一样的，所以它是共享密钥，也就是会话密钥**。
+
+
+
+
+
+### 🌟基于TLS1.2的ECDHE握手
+
+![img](https://cdn.xiaolincoding.com/gh/xiaolincoder/ImageHost4@main/%E7%BD%91%E7%BB%9C/https/ech_tls%E6%8F%A1%E6%89%8B.png)
+
+ECDHE（椭圆曲线 Diffie-Hellman Ephemeral）是一种基于椭圆曲线的临时密钥交换协议，广泛用于 TLS（如 TLS 1.2 和 TLS 1.3）等加密通信中，以实现**前向安全性（Forward Secrecy）**。以下是 ECDHE 握手过程的详细步骤：
+
+**1️⃣ 客户端发起握手（ClientHello）**	
+
+主要包含：支持的 **TLS 版本**、支持的 **密码套件（Cipher Suites）**（包括 ECDHE 相关的套件，如 TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256）、支持的 **椭圆曲线（Elliptic Curves）**、生成的 **随机数（Client Random）**
+
+**2️⃣ 服务器响应（ServerHello & ==Server Key Exchange== & Certificate）**
+
+- **ServerHello**
+
+选择的 **TLS 版本**、选定的 **密码套件**、服务器生成的 **随机数（Server Random）**
+
+-  ==**Server Key Exchange**==（RSA握手没有这一步）
+
+​	服务器选择的椭圆曲线参数、服务器的 **公钥**$ Q_s = d_s G$ （其中 $d_s$ 是私钥， G 是基点）
+
+- **Certificate**
+
+​	使用服务器私钥对该公钥进行签名，确保公钥的真实性（若使用 RSA 证书，服务器私钥签名整个 ServerKeyExchange））
+
+**3️⃣ Client Key Exchange  & Change Cipher Spec & Handshake**
+
+​	计算 **共享密钥**：$S = d_c Q_s = d_c d_s G$
+
+由于只有客户端和服务器知道各自的私钥 $d_c$ 和 $d_s$ ，所以只有它们能计算出相同的共享密钥。
+
+客户端将自己的 ECDHE **公钥** $Q_c$ 发送给服务器。
+
+**4️⃣  Change Cipher Spec & Handshake**
+
+服务器收到 $Q_c$ 后，计算共享密钥：$S = d_s Q_c = d_s d_c G$
+
+这与客户端计算的共享密钥一致。
+
+> **Change Cipher Spec**」：告诉对方后续改用对称算法加密通信。
+>
+> 「**Encrypted Handshake Message**」消息，把之前发送的数据做一个摘要，再用对称密钥加密一下，让对方做个验证，验证下本次生成的对称密钥是否可以正常使用。
+
+### 🌟TLS1.3握手过程
+
+ <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250205%E4%B8%8B%E5%8D%8820142130.png" alt="image-20250205下午20142130" style="zoom:50%;" />
+
+- 客户端在 Client Hello 消息里带上了支持的椭圆曲线，以及这些椭圆曲线对应的公钥。服务端收到后，选定一个椭圆曲线等参数，然后返回消息时，带上服务端这边的公钥。经过这 1 个 RTT，双方手上已经有生成会话密钥的材料了，于是客户端计算出会话密钥，就可以进行应用数据的加密传输了。
+
+
+
+📌 **注意**：0-RTT 数据**容易被重放攻击**，因此不能用于敏感操作（如交易、数据库操作）。
+
+**4️⃣ TLS 1.3 vs TLS 1.2 对比**
+
+| **特性**             | **TLS 1.2**                      | **TLS 1.3**                          |
+| -------------------- | -------------------------------- | ------------------------------------ |
+| **握手时延**         | 2-RTT                            | **1-RTT**（更快）                    |
+| **密钥交换**         | RSA、ECDHE、DHE                  | **仅 ECDHE/DHE**                     |
+| **前向安全**         | 仅 ECDHE/DHE 具备                | **默认前向安全性**                   |
+| **0-RTT 支持**       | ❌ 不支持                         | ✅ **支持**（会话恢复）               |
+| **证书泄露影响**     | 服务器私钥泄露后，可解密历史数据 | 服务器私钥泄露**无法解密**历史数据   |
+| **证书加密**         | ❌ 服务器证书明文传输             | ✅ **服务器证书加密**                 |
+| **密码套件**         | 复杂（支持 CBC、RC4）            | **仅支持 AEAD（AES-GCM、ChaCha20）** |
+| **ChangeCipherSpec** | 需要发送                         | **已移除**                           |
+
+
+
+**📌 TLS 1.3 主要优化**
+
+✅ **握手更快（1-RTT）**
+
+✅ **默认前向安全性**（移除 RSA 交换，强制 ECDHE）
+
+✅ **更安全的密码套件**（只支持 AEAD，加密更快更安全）
+
+✅ **支持 0-RTT，减少重连开销**（适用于低延迟应用）
+
+✅ **证书加密**（防止中间人嗅探）
 
 
 
@@ -268,6 +355,8 @@ DHE算法让双方的<u>私钥在每次密钥交换通信时，都是随机生�
 
 
 
+
+### 
 
 
 
@@ -443,7 +532,70 @@ POST /createUser
 
 
 
+## 什么是HTTP断点重传/断点续传
 
+HTTP 断点重传（**Resumable Download / Range Request**）是一种支持**从上次中断的地方继续传输数据**的技术，常用于<u>大文件下载，以提高传输效率、减少带宽浪费。</u>
+
+**1️⃣ 断点重传的核心原理**
+
+HTTP **断点续传**主要依赖于 Range 头和 206 Partial Content 响应状态码：
+
+✅ **客户端请求部分数据**（Range 头）
+
+✅ **服务器返回指定范围数据**（206 Partial Content 响应）
+
+✅ **客户端拼接数据，继续下载**
+
+示例：
+
+​	1. **初始请求（完整下载）**
+
+```http
+GET /file.zi p HTTP/1.1
+Host: example.com
+```
+
+​	2. 服务器返回 200 OK，并传输完整文件。
+
+​	3. **断点重传请求（指定起点继续下载）**
+
+```http
+GET /file.zip HTTP/1.1
+Host: example.com
+Range: bytes=500000-  # 从第 500000 字节开始
+```
+
+​	•服务器返回 206 Partial Content，并从第 500000 字节开始传输。
+
+**2️⃣ 服务器如何支持断点续传？**
+
+服务器需满足以下条件：
+
+✅ **支持 Range 头**（服务器需解析 Range 并返回相应数据）。
+
+✅ **返回 Accept-Ranges: bytes** 头，表示支持范围请求。
+
+✅ **正确返回 206 Partial Content 状态码**。
+
+示例：服务器返回部分内容：
+
+```
+HTTP/1.1 206 Partial Content
+Accept-Ranges: bytes
+Content-Range: bytes 500000-999999/2000000
+Content-Length: 1500000
+Content-Type: application/zip
+```
+
+**3️⃣ 断点重传的常见应用**
+
+🔹 **浏览器下载器**（如 Chrome、Firefox 支持续传）。
+
+🔹 **下载工具**（如 IDM、迅雷、Wget）。
+
+🔹 **流媒体播放**（如在线播放视频可按需加载部分数据）。
+
+🔹 **P2P 文件共享**（分块传输）。
 
 # TCP
 
@@ -574,7 +726,11 @@ https://mp.weixin.qq.com/s?__biz=MzU3Njk0MTc3Ng==&mid=2247486020&idx=1&sn=f7cf41
 
 服务端接收到了 FIN 报文，TCP 协议栈会为 FIN 包插入一个文件结束符 `EOF` 到接收缓冲区中，应用程序可以通过 `read` 调用来感知这个 FIN 包。
 
+#### listen的第二个参数backlog
 
+在 Linux 内核 2.2 之后，backlog 变成 accept 队列，也就是已完成连接建立的队列长度，**所以现在通常认为 backlog 是 accept 队列。**
+
+**但是上限值是内核参数 somaxconn 的大小，也就说 accpet 队列长度 = min(backlog, somaxconn)。**
 
 ## TCP的可靠性
 
@@ -589,13 +745,13 @@ https://mp.weixin.qq.com/s?__biz=MzU3Njk0MTc3Ng==&mid=2247486020&idx=1&sn=f7cf41
 
 - 一般方法：三个相同ACK重传，但是不知道改重传一个还是后面的所有
 
-- `SACK`(Selective Acknowledgment)：
+### `SACK`(Selective Acknowledgment)：
 
   这种方式需要在 TCP 头部「选项」字段里加一个 `SACK` 的东西，它**可以将已收到的数据的信息发送给「发送方」**
 
   <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250122%E4%B8%8B%E5%8D%8815506456.png" alt="image-20250122下午15506456" style="zoom:50%;" />
 
-- Duplicate SACK(`D-SACK`)
+### Duplicate SACK(`D-SACK`)
 
   **使用了 SACK 来告诉「发送方」有哪些数据被重复接收了**，<u>是因为ACK丢失</u>，<u>还是发送发网络延时</u>
 
@@ -709,6 +865,24 @@ SO_REUSEADDR 作用：**如果当前启动进程绑定的 IP+PORT 与处于TIME_
 再次提醒一次，开启了 `net.ipv4.tcp_tw_reuse` 内核参数，是客户端（连接发起方） 在调用 connect() 函数时才起作用，所以在服务端开启这个参数是没有效果的。
 
 
+
+## TCP vs UDP
+
+### udp一定比tcp快吗？
+
+**1️⃣ UDP 相比 TCP 的优势**
+
+​	✅ **无连接、头部开销小**：UDP 省去了 TCP 的三次握手、连接维护等过程，数据直接发送，理论上更快。
+
+​	✅ **无流量控制、无拥塞控制**：UDP 不会因为丢包或网络拥塞而降低发送速度，适用于低延迟场景，如视频流、实时通信、游戏等。
+
+**2️⃣ TCP 可能比 UDP 更快的情况**
+
+​	❌ **数据可靠性和重传机制**：如果 UDP 发生丢包，应用层需要自己实现可靠性机制（如超时重传），这可能导致额外的开销，甚至比 TCP 还慢。
+
+​	❌ **网络拥塞时**：TCP 拥塞控制（如慢启动）可提高带宽利用率，而 UDP 可能因丢包严重而影响传输效果。
+
+​	❌ **数据量较大时**：TCP 通过滑动窗口和流量控制优化数据传输，而 UDP 可能因丢包和乱序导致额外的处理成本。
 
 
 
