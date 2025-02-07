@@ -2,7 +2,83 @@
 
 # 数据结构
 
-## chan
+## channel
+
+Go 语言中的 **Channel（通道）** 是用于 Goroutine 之间通信和同步的核心数据结构，其底层实现结合了高效的并发控制和内存管理。以下是 Channel 的底层结构和工作原理的详细分析：
+
+---
+
+### **1. Channel 的底层结构**
+Channel 的底层由 `runtime.hchan` 结构体表示（定义在 `runtime/chan.go` 中），核心字段如下：
+
+```go
+type hchan struct {
+    qcount   uint           // 当前队列中的元素数量（缓冲区已存数据量）
+    dataqsiz uint           // 缓冲区的大小（容量）
+    buf      unsafe.Pointer // 指向环形缓冲区的指针
+    elemsize uint16         // 元素类型的大小（字节）
+    closed   uint32         // 是否已关闭（0-未关闭，1-已关闭）
+    elemtype *_type         // 元素类型的元信息（用于类型检查）
+    sendx    uint           // 发送索引（指向缓冲区下一个写入位置）
+    recvx    uint           // 接收索引（指向缓冲区下一个读取位置）
+    recvq    waitq          // 等待接收的 Goroutine 队列（双向链表）
+    sendq    waitq          // 等待发送的 Goroutine 队列（双向链表）
+    lock     mutex          // 互斥锁（保护 Channel 的并发操作）
+}
+```
+
+#### **关键成员说明**
+- **`buf`**：指向一个环形缓冲区（只有当 Channel 是带缓冲的时才会分配）。
+- **`sendq` 和 `recvq`**：等待队列，存储因 Channel 满/空而阻塞的 Goroutine（通过 `sudog` 结构体表示）。
+- **`lock`**：互斥锁，保证对 Channel 操作的原子性（例如并发发送和接收）。
+
+---
+
+### **2. Channel 的工作原理**
+Channel 的行为由其类型（无缓冲或有缓冲）决定，但底层机制是统一的。
+
+#### **2.1 发送数据（`ch <- val`）**
+1. **加锁**：通过 `lock` 互斥锁保护 Channel 的并发操作。
+2. **直接写入缓冲区（如果可能）**：
+   - 如果缓冲区未满，将数据写入 `buf` 的 `sendx` 位置，更新 `sendx` 和 `qcount`。
+3. **阻塞等待（如果缓冲区已满）**：
+   - 如果 Channel 是无缓冲的，或者缓冲区已满，当前 Goroutine 会被封装为 `sudog`，加入 `sendq` 队列。
+   - 调用 `gopark` 挂起当前 Goroutine，等待被唤醒。
+4. **唤醒接收者（如果有等待的接收者）**：
+   - 如果 `recvq` 队列不为空，直接将数据传递给第一个等待的接收者，并唤醒其 Goroutine。
+
+#### **2.2 接收数据（`val := <-ch`）**
+1. **加锁**：同样通过 `lock` 保护操作。
+2. **直接从缓冲区读取（如果可能）**：
+   - 如果缓冲区非空，从 `recvx` 位置读取数据，更新 `recvx` 和 `qcount`。
+3. **阻塞等待（如果缓冲区为空）**：
+   - 如果 Channel 是无缓冲的，或者缓冲区为空，当前 Goroutine 被加入 `recvq` 队列。
+   - 调用 `gopark` 挂起，等待被唤醒。
+4. **唤醒发送者（如果有等待的发送者）**：
+   - 如果 `sendq` 队列不为空，从第一个等待的发送者获取数据（或直接写入缓冲区），并唤醒其 Goroutine。
+
+#### **2.3 关闭 Channel（`close(ch)`）**
+1. **加锁**：确保原子性。
+2. **标记 Channel 为关闭状态**：设置 `closed = 1`。
+3. **唤醒所有等待的 Goroutine**：
+   - 将 `sendq` 和 `recvq` 队列中的所有 Goroutine 唤醒，接收者会收到零值，发送者会触发 panic。
+
+---
+
+### **3. 无缓冲 Channel vs 带缓冲 Channel**
+- **无缓冲 Channel（`make(chan T)`）**：
+  - 发送和接收必须同步完成（直接传递数据，不经过缓冲区）。
+  - 常用于 Goroutine 间的精确同步。
+- **带缓冲 Channel（`make(chan T, size)`）**：
+  - 允许在缓冲区未满时异步发送，或在缓冲区非空时异步接收。
+  - 适用于解耦生产者和消费者，提高吞吐量。
+
+---
+
+### **4. 底层实现的优化**
+- **环形缓冲区**：通过 `sendx` 和 `recvx` 索引实现循环利用内存，避免频繁内存分配。
+- **等待队列（`sendq` 和 `recvq`）**：通过双向链表管理阻塞的 Goroutine，确保公平唤醒（FIFO）。
+- **零拷贝优化**：当发送者和接收者直接传递数据时，避免通过缓冲区复制数据。
 
 
 
@@ -73,7 +149,9 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 
 切片在扩容时会进行内存对齐，这个和内存分配策略相关。进行内存对齐之后，新 slice 的容量是要 大于等于老 slice 容量的 2倍或者1.25倍，当原 slice 容量小于 1024 的时候，新 slice 容量变成原来的 2 倍；原 slice 容量超过 1024，新 slice 容量变成原来的1.25倍。
 
-- 为什么？**大容量时改为 1.25 倍增长** 避免浪费大量内存。
+- 为什么？以我的理解，在1024一下通过两倍迅速的扩大空间，防止频繁的扩容耗时，而在**大容量时改为 1.25 倍增长** 避免浪费大量内存。
+
+
 
 # 并发
 
@@ -118,7 +196,7 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 
 ###  work stealing 
 
-当本线程⽆可运行的G时，尝试从其他线程绑定的P偷取G，⽽不是销毁线程。如果其他线程绑定的p上的本地队列没有，则去全局队列里拿
+当本线程⽆可运行的G时，尝试从其他线程绑定的P偷取G，⽽不是销毁线程。先全局队列，后本地队列
 
 ### hand off
 
@@ -161,8 +239,6 @@ func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
 
 
 
-
-## channel
 
 
 
@@ -259,19 +335,23 @@ cond2:**同时原本的指向白色对象的灰色对象的引用丢失** ——
 
 ![image-20250204下午61843476](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250204%E4%B8%8B%E5%8D%8861843476.png)
 
+### 还有哪些地方需要STW
 
+**初始阶段（Mark Termination）**：
+
+- GC 开始时需要短暂 STW，用于扫描根对象（如全局变量、当前 Goroutine 的栈等），确保一致性。
+
+**终止阶段（Mark Termination）**：
+
+- 在标记完成后，仍需极短时间的 STW（通常小于 100μs）确认所有标记工作完成，并切换 GC 阶段（如开启清扫阶段）。
 
 ## 内存逃逸
 
-在 Go 语言中，**内存逃逸（Escape Analysis）** 是编译器优化的一部分，用于决定变量是在栈（Stack）上分配还是在堆（Heap）上分配。Go 的编译器会在编译阶段进行逃逸分析（Escape Analysis）
+在 Go 语言中，**内存逃逸（Escape Analysis）** 是编译器优化的一部分。Go 的编译器会在编译阶段进行逃逸分析（Escape Analysis）决定变量是在栈（Stack）上分配还是在堆（Heap）上分配
 
 **1️⃣ 为什么会发生内存逃逸？**
 
-
-
-在 Go 语言中，栈的内存管理效率高，但大小有限。因此，Go 通过逃逸分析决定某些变量是否需要分配到堆上。主要导致变量逃逸的情况有：
-
-
+在 Go 语言中，栈的**内存管理效率高**，但大小有限，并且作用域也有限。因此，Go 通过逃逸分析决定某些变量是否需要分配到堆上。
 
 1️⃣ **变量的生命周期超出了函数作用域**
 
@@ -310,7 +390,7 @@ func closureEscape() func() int {
 
 4️⃣ **大对象的分配**
 
-​	•	Go 编译器可能会为了优化栈的使用，将较大的变量分配到堆上，即使它们没有逃逸。
+​	•Go 编译器可能会为了优化栈的使用，将较大的变量分配到堆上，即使它们没有逃逸。
 
 ```
 func largeObject() {
@@ -337,8 +417,6 @@ func escapeStruct() {
 
 **2️⃣ 如何检测内存逃逸？**
 
-
-
 Go 提供了 -gcflags="-m" 选项来查看编译器的逃逸分析：
 
 ```
@@ -363,11 +441,7 @@ main.go:6:13: &x escapes to heap
 
 **3️⃣ 如何减少内存逃逸？**
 
-
-
 为了优化性能，尽量减少不必要的逃逸，可以使用以下方法：
-
-
 
 🔹 **尽量使用值类型而不是指针类型**
 
@@ -414,27 +488,15 @@ func usePool() {
 
 **4️⃣ 逃逸的影响**
 
-
-
 ✅ **优点**
 
 ​	•	逃逸到堆上可以避免栈溢出（栈的大小是有限的）。
 
-
-
 ❌ **缺点**
 
-​	•	堆分配的内存需要垃圾回收（GC），比栈上的内存管理成本更高。
+​	•管理开销：堆分配的内存需要垃圾回收（GC），比栈上的内存管理成本更高。
 
-​	•	堆上的数据访问速度比栈慢。
-
-**5️⃣ 总结**
-
-
-
-📌 **内存逃逸**是 Go 语言编译器在决定变量存储位置时的重要优化手段。当变量超出作用域、被闭包捕获、存入接口、存入堆上的数据结构或太大时，它会被分配到堆上。
-
-📌 使用 -gcflags="-m" 进行逃逸分析可以帮助优化代码，减少 GC 开销，提高程序性能。
+​	•访问开销：堆上的数据访问速度比栈慢。
 
 
 
@@ -646,10 +708,10 @@ func main() {
 >
 >   ```cpp
 >   #include <iostream>
->         
+>             
 >   class Empty {};
 >   class Derived : public Empty {};
->         
+>             
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;

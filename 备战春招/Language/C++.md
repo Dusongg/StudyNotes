@@ -660,6 +660,16 @@ C++中**虚函数表位于只读数据段（.rodata）；而虚函数则位于�
 
 ## 为什么析构函数写为虚函数，构造函数不能为虚函数
 
+**1️⃣ 为什么析构函数要是虚函数？**
+
+析构函数通常被声明为虚函数，以确保在 **基类指针或引用删除派生类对象时，派生类的析构函数能被正确调用**，从而避免 **内存泄漏或未释放资源**。
+
+
+
+**2️⃣ 为什么构造函数不能是虚函数？**
+
+**对象的构造顺序不支持虚函数调用**，在 C++ 中，**对象的构造是从基类到派生类** 逐步进行的。在构造基类时，**虚函数表（vtable）还未初始化**，虚函数的调用机制依赖于 vtable，而 vtable 只有在 **基类构造函数执行完** 之后，才能初始化为派生类的 vtable。
+
 # C++14/17/20
 
 
@@ -741,7 +751,7 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 >
 >    ```bash
 >    g++ -c main.s -o main.o
->                   
+>                      
 >    objdump -d main.o  #机械码文件通过objdump查看
 >    ```
 >
@@ -800,10 +810,10 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 >
 >   ```cpp
 >   #include <iostream>
->       
+>         
 >   class Empty {};
 >   class Derived : public Empty {};
->       
+>         
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;
