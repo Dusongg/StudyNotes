@@ -708,10 +708,10 @@ func main() {
 >
 >   ```cpp
 >   #include <iostream>
->             
+>                   
 >   class Empty {};
 >   class Derived : public Empty {};
->             
+>                   
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;
@@ -739,10 +739,118 @@ func main() {
 ## Go/C++区别
 
 - 标准库容器
-- 开发效率
+
 - 第三方库，包管理
-- 并发
 
-C++：灵活但复杂，适合底层和性能关键场景。
+  - C++：❌ 无官方工具（需用 vcpkg / Conan）依赖 CMake 和第三方工具
+  - Golang：✅ Go Modules 官方支持
 
-Go：简洁高效，适合现代网络服务和快速迭代。
+- 并发模型
+
+- 类型系统
+
+  - C++支持隐式类型转换
+  - Golang禁止隐式类型转换
+
+- 实现多态的方式
+
+  - C++ 的多态主要通过 **虚函数（virtual function）** 和 **运行时多态（Runtime Polymorphism）** 实现。此外，还可以使用 **模板（Templates）** 实现 **编译时多态（Compile-time Polymorphism）**。
+
+  - Go **不支持类继承**，但支持**接口（interface）（鸭子类型）**来实现多态。
+
+    ```go
+    package main
+    
+    import "fmt"
+    
+    // 定义接口
+    type Animal interface {
+        MakeSound()
+    }
+    
+    // Dog 结构体实现 Animal 接口
+    type Dog struct{}
+    func (d Dog) MakeSound() {
+        fmt.Println("Dog barks")
+    }
+    
+    // Cat 结构体实现 Animal 接口
+    type Cat struct{}
+    func (c Cat) MakeSound() {
+        fmt.Println("Cat meows")
+    }
+    
+    func main() {
+        var animal Animal
+    
+        animal = Dog{}
+        animal.MakeSound() // ✅ Dog barks
+    
+        animal = Cat{}
+        animal.MakeSound() // ✅ Cat meows
+    }
+    ```
+
+    
+
+- 应用场景：
+
+  - C++：交易系统、游戏引擎、嵌入式
+  - Golang：云原生、微服务、分布式
+
+
+
+
+
+
+## Go中变量的初始化顺序（全局/`init()`/）
+
+1. 递归包内的变量/init()
+2. 该包的全局变量
+3. 该包的init()
+
+
+
+```go
+// mypkg/mypkg.go
+package mypkg
+
+import "fmt"
+
+var X = initializeX()
+
+func initializeX() int {
+	fmt.Println("Initializing X in mypkg")
+	return 42
+}
+
+func init() {
+	fmt.Println("Executing init() in mypkg")
+}
+/////////////////////////
+
+package main
+
+import (
+	"fmt"
+	_ "mypkg" // 只触发 mypkg 的初始化，不使用其标识符
+)
+
+func init() {
+	fmt.Println("Executing init() in main")
+}
+
+func main() {
+	fmt.Println("Executing main()")
+}
+```
+
+输出：
+
+```bash
+Initializing X in mypkg
+Executing init() in mypkg
+Executing init() in main
+Executing main()
+```
+

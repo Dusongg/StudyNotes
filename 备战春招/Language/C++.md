@@ -255,7 +255,7 @@ int main() {
 
 ### 左值 & 右值
 
-左值是**可以取地址（即能用 & 取出指针）的对象**，通常是**变量**、**引用**或**返回左值引用的表达式**。
+左值是**可以取地址（即能用 & 取出指针）的对象**，表示对变量或者对象的引用
 
 右值可以进一步细分为：
 
@@ -363,7 +363,7 @@ int main() {
 
 ### 引用 vs 指针
 
-1️⃣初始化 2️⃣安全性 3️⃣访问方式
+1️⃣初始化 2️⃣安全性 3️⃣访问方式 4️⃣sizeof计算
 
 
 
@@ -751,7 +751,7 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 >
 >    ```bash
 >    g++ -c main.s -o main.o
->                      
+>                                  
 >    objdump -d main.o  #机械码文件通过objdump查看
 >    ```
 >
@@ -810,10 +810,10 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 >
 >   ```cpp
 >   #include <iostream>
->         
+>                 
 >   class Empty {};
 >   class Derived : public Empty {};
->         
+>                 
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;
@@ -831,3 +831,169 @@ Go 设计 struct{} 的初衷是**高效、简洁**，如果结构体不包含任
 - 空结构体用途：（节省空间）
   - map-》set
   - 在channel中传递信号，不传输值
+
+
+
+
+
+## 单例模式
+
+### 懒汉模式
+
+- 使用call_once
+
+```cpp
+#include <iostream>
+#include <mutex>
+
+class Singleton {
+public:
+    static Singleton& getInstance() {
+        std::call_once(initFlag, []() {
+            instance = new Singleton();
+        });
+        return *instance;
+    }
+
+    // 禁止拷贝和赋值
+    Singleton(const Singleton&) = delete;
+    Singleton& operator=(const Singleton&) = delete;
+
+    void show() { std::cout << "Singleton Instance" << std::endl; }
+
+private:
+    Singleton() { std::cout << "Singleton Constructor" << std::endl; }
+    ~Singleton() { std::cout << "Singleton Destructor" << std::endl; }
+
+    static Singleton* instance;
+    static std::once_flag initFlag;
+};
+
+// 初始化静态成员
+Singleton* Singleton::instance = nullptr;
+std::once_flag Singleton::initFlag;
+
+int main() {
+    Singleton& s1 = Singleton::getInstance();
+    s1.show();
+
+    Singleton& s2 = Singleton::getInstance();
+    s2.show();
+
+    std::cout << "s1 and s2 are the same instance: " << (&s1 == &s2) << std::endl;
+    return 0;
+}
+```
+
+- 使用静态局部变量实现线程安全
+
+```cpp
+#include <iostream>
+
+class Singleton {
+public:
+    static Singleton& getInstance() {
+        static Singleton instance; // C++11 线程安全
+        return instance;
+    }
+
+    Singleton(const Singleton&) = delete;
+    Singleton& operator=(const Singleton&) = delete;
+
+    void show() { std::cout << "Singleton Instance" << std::endl; }
+
+private:
+    Singleton() { std::cout << "Singleton Constructor" << std::endl; }
+    ~Singleton() { std::cout << "Singleton Destructor" << std::endl; }
+};
+
+int main() {
+    Singleton& s1 = Singleton::getInstance();
+    s1.show();
+
+    Singleton& s2 = Singleton::getInstance();
+    s2.show();
+
+    std::cout << "s1 and s2 are the same instance: " << (&s1 == &s2) << std::endl;
+    return 0;
+}
+```
+
+
+
+
+
+### 饿汉模式
+
+```cpp
+#include <iostream>
+
+class Singleton {
+public:
+    static Singleton& getInstance() {
+        return instance;
+    }
+
+    Singleton(const Singleton&) = delete;
+    Singleton& operator=(const Singleton&) = delete;
+
+    void show() { std::cout << "Singleton Instance" << std::endl; }
+
+private:
+    Singleton() { std::cout << "Singleton Constructor" << std::endl; }
+    ~Singleton() { std::cout << "Singleton Destructor" << std::endl; }
+
+    static Singleton instance;
+};
+
+// 静态实例提前创建（程序启动时）
+Singleton Singleton::instance;
+
+int main() {
+    Singleton& s1 = Singleton::getInstance();
+    s1.show();
+
+    Singleton& s2 = Singleton::getInstance();
+    s2.show();
+
+    std::cout << "s1 and s2 are the same instance: " << (&s1 == &s2) << std::endl;
+    return 0;
+}
+```
+
+
+
+
+
+#### Double check
+
+```cpp
+#include <iostream>
+#include <mutex>
+
+class Singleton {
+public:
+    static Singleton* getInstance() {
+        if (instance == nullptr) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (instance == nullptr) {
+                instance = new Singleton();
+            }
+        }
+        return instance;
+    }
+
+    void doSomething() {
+        std::cout << "Singleton doing something" << std::endl;
+    }
+
+private:
+    Singleton() {} // Private constructor to prevent instantiation
+    static Singleton* instance;
+    static std::mutex mutex_;
+};
+
+Singleton* Singleton::instance = nullptr;
+std::mutex Singleton::mutex_;
+```
+

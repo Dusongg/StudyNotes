@@ -1,6 +1,8 @@
 ###  计网基础
 
-### DNS解析步骤 
+### DNS（Domain Name System）解析步骤 
+
+- 默认端口号是53
 
 1️⃣查看浏览器缓存
 
@@ -58,7 +60,7 @@
 
 ## 打开网页的过程
 
-- 解析URL：分析 URL 所需要使用的传输协议和请求的资源路径。如果输入的 URL 中的协议或者主机名不合法，将会把地址栏中输入的内容传递给搜索引擎。如果没有问题，浏览器会检查 URL 中是否出现了非法字符，则对非法字符进行转义后在进行下一过程。
+- 解析URL：分析 URL 所需要使用的**传输协议和请求的资源路径**。如果输入的 URL 中的协议或者主机名不合法，将会把地址栏中输入的内容传递给搜索引擎。如果没有问题，浏览器会检查 URL 中是否出现了非法字符，则对非法字符进行转义后在进行下一过程。
 - 缓存判断：浏览器会判断所请求的资源是否在缓存里，如果请求的资源在缓存里且没有失效，那么就直接使用，否则向服务器发起新的请求。
 - DNS解析：如果资源不在本地缓存，首先需要进行DNS解析。浏览器会向本地DNS服务器发送域名解析请求，本地DNS服务器会逐级查询，最终找到对应的IP地址。
 - 获取MAC地址：当浏览器得到 IP 地址后，数据传输还需要知道目的主机 MAC 地址，因为应用层下发数据给传输层，TCP 协议会指定源端口号和目的端口号，然后下发给网络层。网络层会将本机地址作为源地址，获取的 IP 地址作为目的地址。然后将下发给数据链路层，数据链路层的发送需要加入通信双方的 MAC 地址，本机的 MAC 地址作为源 MAC 地址，目的 MAC 地址需要分情况处理。通过将 IP 地址与本机的子网掩码相结合，可以判断是否与请求主机在同一个子网里，如果在同一个子网里，可以使用 APR 协议获取到目的主机的 MAC 地址，如果不在一个子网里，那么请求应该转发给网关，由它代为转发，此时同样可以通过 ARP 协议来获取网关的 MAC 地址，此时目的主机的 MAC 地址应该为网关的地址。
@@ -112,13 +114,97 @@
 
 ### 常见字段
 
- 	 	
+1️⃣ 身份认证
 
+**Authorization**：客户端认证信息（如 Bearer <token>）
 
+**Cookie**：携带客户端的 Cookie（如 Cookie: sessionId=abc123）
 
+**Set-Cookie**：服务器设置 Cookie（如 Set-Cookie: sessionId=xyz456; HttpOnly）
 
+2️⃣ 缓存相关
+
+强制缓存：Cache-Control、Expires
+
+协商缓存1:If-None-Match、ETag
+
+协商缓存2:If-Modified-Since、Last-Modified
+
+**3️⃣ 内容协商相关**
+
+**Accept**：客户端可接受的响应格式（如 Accept: application/json）
+
+**Accept-Encoding**：客户端支持的编码格式（如 gzip, deflate）
+
+**Accept-Language**：客户端首选语言（如 zh-CN, en-US）
+
+**Content-Type**：请求/响应的内容类型（如 application/json、text/html）
+
+**Content-Encoding**：响应内容的压缩方式（如 gzip）
+
+**Content-Language**：响应的语言（如 zh-CN）
+
+4️⃣其他
+
+**Location**：重定向地址（如 Location: https://example.com）
+
+**Host**：请求的服务器主机（如 Host: www.example.com）
+
+**User-Agent**：客户端的身份信息（如 Mozilla/5.0）
+
+**Connection**：控制是否保持 TCP 连接（如 keep-alive）
+
+**Upgrade**：用于协议升级（如 Upgrade: websocket）
 
 ## HTTP缓存
+
+是的，你的分类是合理的，**强制缓存** 和 **协商缓存** 都是 HTTP 缓存机制的重要组成部分，具体说明如下：
+
+**2️⃣ 缓存相关**
+
+**🔹 强制缓存**
+
+强制缓存可以让浏览器在**缓存有效期内**直接使用本地缓存，不请求服务器。
+
+​	•	**Cache-Control**：控制缓存行为（如 max-age=3600 表示缓存 1 小时，no-cache 表示必须重新验证缓存）。
+
+​	•	**Expires**：设置资源的过期时间（如 Expires: Wed, 21 Oct 2025 07:28:00 GMT）。
+
+​	**说明**：Cache-Control 的优先级高于 Expires，==Expires 依赖于**本地时间**，如果客户端时间不准确可能导致缓存失效问题。==
+
+**🔹 协商缓存**
+
+协商缓存用于在强制缓存失效后，由浏览器向服务器发送请求，服务器根据资源是否更新来决定是否返回新资源。
+
+- **方式 1️⃣ (ETag & If-None-Match)**
+
+​	•	**ETag**：服务器为资源生成的唯一标识（类似哈希值，如 ETag: "abc123"）。
+
+​	•	**If-None-Match**：客户端请求时带上上次获取的 ETag，服务器检查是否匹配。
+
+​	•	**匹配** ➝ 返回 <u>304 Not Modified</u>（使用本地缓存）。
+
+​	•	**不匹配** ➝ 服务器返回新的资源和新的 ETag 值。
+
+- **方式 2️⃣ (Last-Modified & If-Modified-Since)**
+
+​	•	**Last-Modified**：资源的最后修改时间（如 Last-Modified: Wed, 21 Oct 2023 07:28:00 GMT）。
+
+​	•	**If-Modified-Since**：客户端请求时带上 Last-Modified 值，服务器检查资源是否被修改。
+
+​	•	**未修改** ➝ 返回 <u>304 Not Modified</u>（使用本地缓存）。
+
+​	•	**已修改** ➝ 服务器返回新的资源和新的 Last-Modified 值。
+
+- **ETag 与 Last-Modified 的区别**：
+
+​	•ETag 更精确，它是资源的唯一标识，即使资源内容发生微小变化也会变化。
+
+​	•Last-Modified 只能精确到**秒级**，如果资源在 1 秒内多次更新，无法检测出变化。
+
+​	•一般 ETag 优先级**高于** Last-Modified，服务器通常会**同时返回**两者。
+
+🚀 这样分类后，缓存的工作原理和优先级也更加清晰！
 
 ![image-20250113下午115124506](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250113%E4%B8%8B%E5%8D%88115124506.png)
 
@@ -412,9 +498,12 @@ ECDHE（椭圆曲线 Diffie-Hellman Ephemeral）是一种基于椭圆曲线的�
 QUIC 有以下 3 个特点。
 
 - 无队头阻塞
+
 - 更快的连接建立
+
 - 连接迁移
-- 
+
+  
 
 ## RPC与HTTP区别
 
@@ -673,7 +762,8 @@ close(sockfd);
 
 #### TIME_WAIT有什么用，为什么要是2MSL
 
-
+- 让历史报文丢弃
+- 第四次挥手报文可能丢失，接受对方FIN报文重传
 
 #### TIME_WAIT过多的危害
 
@@ -795,8 +885,6 @@ https://mp.weixin.qq.com/s?__biz=MzU3Njk0MTc3Ng==&mid=2247486020&idx=1&sn=f7cf41
 
 
 
-
-
 ### 拥塞控制
 
 #### 有了流量控制为什么还要有拥塞控制？
@@ -835,8 +923,6 @@ https://mp.weixin.qq.com/s?__biz=MzU3Njk0MTc3Ng==&mid=2247486020&idx=1&sn=f7cf41
 
 
 ### 多个TCP服务绑定能否同一个端口？
-
-
 
 SO_REUSEADDR 作用：**如果当前启动进程绑定的 IP+PORT 与处于TIME_WAIT 状态的连接占用的 IP+PORT 存在冲突，但是新启动的进程使用了 SO_REUSEADDR 选项，那么该进程就可以绑定成功**
 
@@ -884,7 +970,22 @@ SO_REUSEADDR 作用：**如果当前启动进程绑定的 IP+PORT 与处于TIME_
 
 ​	❌ **数据量较大时**：TCP 通过滑动窗口和流量控制优化数据传输，而 UDP 可能因丢包和乱序导致额外的处理成本。
 
+### tcp与udp的区别
 
+- 应用场景
+
+- 可靠性
+
+- 头部字段大小
+
+  <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250209%E4%B8%8A%E5%8D%88125842157.png" alt="image-20250209上午125842157" style="zoom: 25%;" />
+
+- 面向链接
+
+- **传输方式**
+
+  - TCP**：面向字节流，数据以流的形式传输，无明确的消息边界。**
+  - UDP：面向数据报，以数据报文（Datagram）为单位发送，消息边界明确。
 
 
 

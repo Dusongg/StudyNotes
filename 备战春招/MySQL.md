@@ -77,6 +77,36 @@ InnoDB 里的 B+ 树中的**每个节点都是一个数据页**，结构示意�
 >
 > ​	4.	**数据列**（在聚簇索引中存储行数据，在二级索引中存储主键值）。
 
+
+
+## 查询数据如何优化
+
+**1️⃣ 索引优化**
+
+- 选择合适索引
+- 避免全表扫描，避免索引失效
+- 覆盖索引
+
+**2️⃣SQL语句优化**
+
+- **不要用 SELECT \***，减少不必要的 I/O。
+- **避免 ORDER BY 和 GROUP BY 临时建表**：适当使用**索引**，让 ORDER BY 或 GROUP BY 直接使用索引排序，而不是临时表排序。
+- **避免 HAVING 过滤数据，尽量使用 WHERE**，减少不必要的分组计算。
+
+**3️⃣ 事务 & 锁优化**
+
+- 减少锁的范围
+- 避免长事务
+
+**4️⃣ 使用缓存**
+
+- 使用 **Redis/Memcached** 缓存热点数据
+
+**5️⃣ 数据库结构优化**
+
+- **分区（Partitioning）**：大数据量表可以使用 **分区表**，加速查询。
+- **分库分表**：当单表数据量过大（超过 1000 万行），考虑**水平分表（Sharding）** 或 **垂直拆分（Vertical Partitioning）**。
+
 # 索引
 
 ## B+ vs B树
@@ -177,10 +207,24 @@ CREATE TABLE orders (
 ## 索引失效
 
 - **左模糊匹配**
+
 - **对索引使用函数**（Mysql8.0之后支持函数索引：对某个字段的函数值建立索引） or 对索引进行表达式运算
+
 - **对索引进行隐式转换**
+
 - **联合索引非最左匹配**
-- **在where子句中使用or**
+
+- **在where子句中使用or**——建议用 UNION ALL 替代。
+
+  ```mysql
+  SELECT * FROM users WHERE email = 'user@example.com' OR phone = '1234567890';
+  #改为：
+  SELECT * FROM users WHERE email = 'user@example.com'
+  UNION ALL
+  SELECT * FROM users WHERE phone = '1234567890';
+  ```
+
+  
 
 
 
@@ -192,17 +236,84 @@ CREATE TABLE orders (
 
 
 
+## 什么是索引下推
+
+**索引下推（Index Condition Pushdown, ICP）**：让存储引擎在**索引扫描阶段**先执行 WHERE 条件过滤，减少回表次数，提高查询速度。
+
+**🔹 例子**
+
+- **没有索引下推（ICP 之前的情况）**
+
+假设有一个 users 表：
+
+```mysql
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(50),
+    age INT,
+    city VARCHAR(50),
+    INDEX idx_name_age (name, age)
+);
+
+#查询
+SELECT * FROM users WHERE name LIKE 'A%' AND age > 25;
+```
+
+**执行过程（无 ICP）：**
+
+1️⃣ MySQL 先通过索引 idx_name_age 找到 **name LIKE ‘A%’** 的所有记录（索引可用）。
+
+2️⃣ **存储引擎返回主键 ID**，然后**回表**取出完整的行数据。
+
+3️⃣ MySQL 服务器再执行 age > 25 过滤。
+
+❌ **问题：即使 age 不符合条件，也会先回表，占用不必要的 I/O。**
+
+
+
+- **有索引下推（启用 ICP）**
+
+**MySQL 5.6 及以上**，如果 WHERE 条件中的字段**全部或部分**在索引 idx_name_age 中，**存储引擎可以在索引层先执行过滤**，减少回表：
+
+```
+EXPLAIN SELECT * FROM users WHERE name LIKE 'A%' AND age > 25;
+```
+
+如果 Extra 字段显示：
+
+```
+Using index condition
+```
+
+✅ **优化点：**
+
+1️⃣ MySQL 先通过索引 idx_name_age 找到 name LIKE 'A%' 的记录。
+
+2️⃣ **存储引擎直接在索引中过滤 age > 25，减少不必要的回表**。
+
+3️⃣ 只有符合 name LIKE 'A%' AND age > 25 的记录才会回表获取完整行数据。
+
+🔥 **减少回表次数，提升查询效率！**
+
+
+
+
+
+## explain如何实现
+
+
+
 # 事务
 
 - 事务的特性（ACID）
 
   - 原子性：一个事务中的所有操作，要么全部完成，要么全部不完成 —— undo log（回滚日志）
 
-  - 一致性：是指事务操作前和操作后，数据满足完整性约束，数据库保持一致性状态 —— redo log（重做日志）
+  - 一致性：是指事务操作前和操作后，数据满足完整性约束，数据库保持一致性状态
 
   - 隔离性：多个事务间操作隔离 —— MVCC / 锁
 
-  - 持久性：事务处理之后，对数据的操作是永久的
+  - 持久性：事务处理之后，对数据的操作是永久的 —— redo log（重做日志）
 
 - 事务引发的问题
   - 脏读：读到未提交的数据（数据会滚导致前后不一致）
