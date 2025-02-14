@@ -962,7 +962,7 @@ func releaseLock(ctx context.Context, key string, value string) (bool, error) {
 - 不可重入：同一个线程无法多次获取同一把锁
 - 不可重试：获取失败，没有重试机制
 - 超时释放：**锁续期机制**：在某些情况下，如果任务执行时间较长，可以通过实现锁的续期机制（例如定期重新设置锁的过期时间）来保持锁的有效性。
-- 主从一致性：
+- 主从一致性：redlock
 
 
 

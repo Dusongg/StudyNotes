@@ -106,6 +106,10 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (interface{}, err
 1. 超时时间设置 ——》**看门狗**
 2. 主从模式下，由于redis分布式策略偏向**AP**（可用性和分区容错性），选择异步复制的方式（弱一致性），导致分布式锁不可靠 ——》 **redlock**
 
+## Redisson
+
+
+
 
 
 
@@ -146,6 +150,81 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (interface{}, err
   - AOF增量命令的追加对性能影响较小（依赖磁盘写入策略，如`appendfsync`配置为`everysec`平衡性能与安全。
 
 
+
+# 数据结构
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240422011248940.png" alt="image-20240422011248940" style="zoom:50%;" />
+
+## String
+
+encoding：int、embstr、raw
+
+1️⃣**embstr和raw的区别**
+
+​	• embstr 是一种优化小字符串（小于44字节）存储的方式，它通过将字符串的内容和元数据存储在一块连续内存区域内，减少了内存分配的开销。
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250213%E4%B8%8B%E5%8D%8850125241.png" alt="image-20250213下午50125241" style="zoom:50%;" />
+
+​	• raw 则适用于较大的字符串或需要频繁操作的字符串，虽然它可能占用更多内存，但提供了更大的灵活性。
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250213%E4%B8%8B%E5%8D%8850134622.png" alt="image-20250213下午50134622" style="zoom:50%;" />
+
+**2️⃣ 使用场景**
+
+缓存、计数、分布式锁、记录session
+
+
+
+## List
+
+### List作为消息队列
+
+- **阻塞读**（list原生保证消息顺序性）：BRPOP命令也称为阻塞式读取，客户端在没有读到队列数据时，自动阻塞，直到有新的数据写入队列，再开始读取新数据
+
+- **重复消息**：全局唯一ID
+
+- **保证消息可靠性**：`BRPOPLPUSH`**消费者程序从一个 List 中读取消息，同时，Redis 会把这个消息再插入到另一个 List（可以叫作备份 List）留存**。
+
+  > 当消费者程序从 List 中读取一条消息后，List 就不会再留存这条消息了。所以，如果消费者程序在处理消息的过程出现了故障或宕机，就会导致消息没有处理完成，那么，消费者程序再次启动后，就没法再次从 List 中读取消息了。
+
+- **List作为消息队列的缺陷**：1️⃣不支持多个消费者消费同一条消息 2️⃣不支持消费组的实现
+
+
+
+
+
+## Hash
+
+```bash
+# 存储一个哈希表uid:1的键值
+> HMSET uid:1 name Tom age 15
+2
+# 存储一个哈希表uid:2的键值
+> HMSET uid:2 name Jerry age 13
+2
+# 获取哈希表用户id为1中所有的键值
+> HGETALL uid:1
+1) "name"
+2) "Tom"
+3) "age"
+4) "15"
+```
+
+应用场景
+
+
+
+## Set
+
+应用场景
+
+
+
+
+
+
+
+
 # 其他
 
 ## 本地缓存与Redis缓存的区别
@@ -156,3 +235,81 @@ func (g *Group) Do(key string, fn func() (interface{}, error)) (interface{}, err
 
 
 
+
+
+# redis实现消息队列的方式
+
+- [rabbitMQ](../RabbitMQ.md)
+
+**1️⃣ list实现**
+
+LPUSH + BRPOP 实现
+
+> - 单消费者
+
+2️⃣**发布订阅实现**
+
+![image-20240921203124380](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921203124380.png)
+
+> 不支持数据持久化
+>
+> 无法保证可靠性
+>
+> 消息堆积有上限，超出时数据丢失（消费者无法接收到离线时的数据）
+
+**3️⃣[Streams](https://redis.io/docs/latest/commands/?group=stream)**
+
+**支持消息的持久化、支持自动生成全局唯一 ID、支持 ack 确认消息的模式、支持消费组模式等，让消息队列更加的稳定和可靠**
+
+- **即同一个消费组里的消费者不能消费同一条消息**。不同消费者组可以重复消费
+
+  
+
+
+
+1. `XADD`生产
+
+![image-20240921204204306](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921204204306.png)
+
+2. `XREAD`消费
+
+通过`XREAD`的`$`读取，可能会出现==消息漏读==的问题，因为`$`只会读取最新消息
+
+![image-20240921204701258](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921204701258.png)
+
+3. `XGROUP`消费者组
+
+![image-20240921205309401](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20240921205309401.png)
+
+- `XGROUP CREATE`
+- `XREADGROUP`：**消费者可以在重启后，用 XPENDING 命令查看已读取、但尚未确认处理完成的消息**。
+
+
+
+## Redis 基于 Stream 消息队列与专业的消息队列有哪些差距？
+
+- 消息丢失情况
+
+  - AOF 持久化配置为每秒写盘，但这个写盘过程是异步的，Redis 宕机时会存在数据丢失的可能
+
+  - 主从复制也是异步的，[主从切换时，也存在丢失数据的可能 (opens new window)](https://xiaolincoding.com/redis/cluster/master_slave_replication.html#redis-主从切换如何减少数据丢失)。
+
+- 消息堆积情况
+
+> 所以 Redis 的 Stream 提供了可以指定队列最大长度的功能，就是为了避免这种情况发生。
+>
+> 当指定队列最大长度时，队列长度超过上限后，旧消息会被删除，只保留固定长度的新消息。这么来看，Stream 在消息积压时，如果指定了最大长度，还是有可能丢失消息的。
+>
+> 但 Kafka、RabbitMQ 专业的消息队列它们的数据都是存储在磁盘上，当消息积压时，无非就是多占用一些磁盘空间。
+
+
+
+
+
+## Redis 发布/订阅机制为什么不可以作为消息队列？
+
+发布订阅机制存在以下缺点，都是跟丢失数据有关：
+
+1. 发布/订阅机制没有基于任何数据类型实现，所以不具备「数据持久化」的能力，也就是发布/订阅机制的相关操作，不会写入到 RDB 和 AOF 中，当 Redis 宕机重启，发布/订阅机制的数据也会全部丢失。
+2. 发布订阅模式是“发后既忘”的工作模式，如果有订阅者离线重连之后不能消费之前的历史消息。
+3. 当消费端有一定的消息积压时，也就是生产者发送的消息，消费者消费不过来时，如果超过 32M 或者是 60s 内持续保持在 8M 以上，消费端会被强行断开，这个参数是在配置文件中设置的，默认值是 `client-output-buffer-limit pubsub 32mb 8mb 60`。

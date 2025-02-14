@@ -71,8 +71,6 @@
 
    数据足够新，通过广播拉票一半以上
 
-## 
-
 ### 任期与日志索引 
 
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250110%E4%B8%8B%E5%8D%8833415555.png" alt="image-20250110下午33415555" style="zoom:50%;" />
