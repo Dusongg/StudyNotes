@@ -109,7 +109,7 @@ int main() {
 }
 ```
 
-### 
+
 
 ## auto关键字
 
@@ -770,7 +770,7 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 >
 >    ```bash
 >    g++ -c main.s -o main.o
->                                        
+>                                           
 >    objdump -d main.o  #机械码文件通过objdump查看
 >    ```
 >
@@ -829,10 +829,10 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 >
 >   ```cpp
 >   #include <iostream>
->                     
+>                       
 >   class Empty {};
 >   class Derived : public Empty {};
->                     
+>                       
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;

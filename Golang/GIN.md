@@ -1,0 +1,1 @@
+https://docs.fengfengzhidao.com/#/docs/Gin%E6%A1%86%E6%9E%B6%E6%96%87%E6%A1%A3/1.%E5%88%9D%E5%A7%8Bgin

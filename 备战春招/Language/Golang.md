@@ -4,241 +4,249 @@
 
 ## channel
 
-Go 语言中的 **Channel（通道）** 是用于 Goroutine 之间通信和同步的核心数据结构，其底层实现结合了高效的并发控制和内存管理。以下是 Channel 的底层结构和工作原理的详细分析：
-
----
-
-### **1. Channel 的底层结构**
-Channel 的底层由 `runtime.hchan` 结构体表示（定义在 `runtime/chan.go` 中），核心字段如下：
-
-```go
-type hchan struct {
-    qcount   uint           // 当前队列中的元素数量（缓冲区已存数据量）
-    dataqsiz uint           // 缓冲区的大小（容量）
-    buf      unsafe.Pointer // 指向环形缓冲区的指针
-    elemsize uint16         // 元素类型的大小（字节）
-    closed   uint32         // 是否已关闭（0-未关闭，1-已关闭）
-    elemtype *_type         // 元素类型的元信息（用于类型检查）
-    sendx    uint           // 发送索引（指向缓冲区下一个写入位置）
-    recvx    uint           // 接收索引（指向缓冲区下一个读取位置）
-    recvq    waitq          // 等待接收的 Goroutine 队列（双向链表）
-    sendq    waitq          // 等待发送的 Goroutine 队列（双向链表）
-    lock     mutex          // 互斥锁（保护 Channel 的并发操作）
-}
-```
-
-#### **关键成员说明**
-- **`buf`**：指向一个环形缓冲区（只有当 Channel 是带缓冲的时才会分配）。
-- **`sendq` 和 `recvq`**：等待队列，存储因 Channel 满/空而阻塞的 Goroutine（通过 `sudog` 结构体表示）。
-- **`lock`**：互斥锁，保证对 Channel 操作的原子性（例如并发发送和接收）。
-
----
-
-### **2. Channel 的工作原理**
-Channel 的行为由其类型（无缓冲或有缓冲）决定，但底层机制是统一的。
-
-#### **2.1 发送数据（`ch <- val`）**
-1. **加锁**：通过 `lock` 互斥锁保护 Channel 的并发操作。
-2. **直接写入缓冲区（如果可能）**：
-   - 如果缓冲区未满，将数据写入 `buf` 的 `sendx` 位置，更新 `sendx` 和 `qcount`。
-3. **阻塞等待（如果缓冲区已满）**：
-   - 如果 Channel 是无缓冲的，或者缓冲区已满，当前 Goroutine 会被封装为 `sudog`，加入 `sendq` 队列。
-   - 调用 `gopark` 挂起当前 Goroutine，等待被唤醒。
-4. **唤醒接收者（如果有等待的接收者）**：
-   - 如果 `recvq` 队列不为空，直接将数据传递给第一个等待的接收者，并唤醒其 Goroutine。
-
-#### **2.2 接收数据（`val := <-ch`）**
-1. **加锁**：同样通过 `lock` 保护操作。
-2. **直接从缓冲区读取（如果可能）**：
-   - 如果缓冲区非空，从 `recvx` 位置读取数据，更新 `recvx` 和 `qcount`。
-3. **阻塞等待（如果缓冲区为空）**：
-   - 如果 Channel 是无缓冲的，或者缓冲区为空，当前 Goroutine 被加入 `recvq` 队列。
-   - 调用 `gopark` 挂起，等待被唤醒。
-4. **唤醒发送者（如果有等待的发送者）**：
-   - 如果 `sendq` 队列不为空，从第一个等待的发送者获取数据（或直接写入缓冲区），并唤醒其 Goroutine。
-
-#### **2.3 关闭 Channel（`close(ch)`）**
-1. **加锁**：确保原子性。
-2. **标记 Channel 为关闭状态**：设置 `closed = 1`。
-3. **唤醒所有等待的 Goroutine**：
-   - 将 `sendq` 和 `recvq` 队列中的所有 Goroutine 唤醒，接收者会收到零值，发送者会触发 panic。
-
----
-
-### **3. 无缓冲 Channel vs 带缓冲 Channel**
-- **无缓冲 Channel（`make(chan T)`）**：
-  - 发送和接收必须同步完成（直接传递数据，不经过缓冲区）。
-  - 常用于 Goroutine 间的精确同步。
-- **带缓冲 Channel（`make(chan T, size)`）**：
-  - 允许在缓冲区未满时异步发送，或在缓冲区非空时异步接收。
-  - 适用于解耦生产者和消费者，提高吞吐量。
-
----
-
-### **4. 底层实现的优化**
-- **环形缓冲区**：通过 `sendx` 和 `recvx` 索引实现循环利用内存，避免频繁内存分配。
-- **等待队列（`sendq` 和 `recvq`）**：通过双向链表管理阻塞的 Goroutine，确保公平唤醒（FIFO）。
-- **零拷贝优化**：当发送者和接收者直接传递数据时，避免通过缓冲区复制数据。
-
-
+> Go 语言中的 **Channel（通道）** 是用于 Goroutine 之间通信和同步的核心数据结构，其底层实现结合了高效的并发控制和内存管理。以下是 Channel 的底层结构和工作原理的详细分析：
+>
+> ---
+>
+> ### **1. Channel 的底层结构**
+>
+> Channel 的底层由 `runtime.hchan` 结构体表示（定义在 `runtime/chan.go` 中），核心字段如下：
+>
+> ```go
+> type hchan struct {
+>     qcount   uint           // 当前队列中的元素数量（缓冲区已存数据量）
+>     dataqsiz uint           // 缓冲区的大小（容量）
+>     buf      unsafe.Pointer // 指向环形缓冲区的指针
+>     elemsize uint16         // 元素类型的大小（字节）
+>     closed   uint32         // 是否已关闭（0-未关闭，1-已关闭）
+>     elemtype *_type         // 元素类型的元信息（用于类型检查）
+>     sendx    uint           // 发送索引（指向缓冲区下一个写入位置）
+>     recvx    uint           // 接收索引（指向缓冲区下一个读取位置）
+>     recvq    waitq          // 等待接收的 Goroutine 队列（双向链表）
+>     sendq    waitq          // 等待发送的 Goroutine 队列（双向链表）
+>     lock     mutex          // 互斥锁（保护 Channel 的并发操作）
+> }
+> ```
+>
+> #### **关键成员说明**
+>
+> - **`buf`**：指向一个环形缓冲区（只有当 Channel 是带缓冲的时才会分配）。
+> - **`sendq` 和 `recvq`**：等待队列，存储因 Channel 满/空而阻塞的 Goroutine（通过 `sudog` 结构体表示）。
+> - **`lock`**：互斥锁，保证对 Channel 操作的原子性（例如并发发送和接收）。
+>
+> ---
+>
+> ### **2. Channel 的工作原理**
+>
+> Channel 的行为由其类型（无缓冲或有缓冲）决定，但底层机制是统一的。
+>
+> #### **2.1 发送数据（`ch <- val`）**
+>
+> 1. **加锁**：通过 `lock` 互斥锁保护 Channel 的并发操作。
+> 2. **直接写入缓冲区（如果可能）**：
+>    - 如果缓冲区未满，将数据写入 `buf` 的 `sendx` 位置，更新 `sendx` 和 `qcount`。
+> 3. **阻塞等待（如果缓冲区已满）**：
+>    - 如果 Channel 是无缓冲的，或者缓冲区已满，当前 Goroutine 会被封装为 `sudog`，加入 `sendq` 队列。
+>    - 调用 `gopark` 挂起当前 Goroutine，等待被唤醒。
+> 4. **唤醒接收者（如果有等待的接收者）**：
+>    - 如果 `recvq` 队列不为空，直接将数据传递给第一个等待的接收者，并唤醒其 Goroutine。
+>
+> #### **2.2 接收数据（`val := <-ch`）**
+>
+> 1. **加锁**：同样通过 `lock` 保护操作。
+> 2. **直接从缓冲区读取（如果可能）**：
+>    - 如果缓冲区非空，从 `recvx` 位置读取数据，更新 `recvx` 和 `qcount`。
+> 3. **阻塞等待（如果缓冲区为空）**：
+>    - 如果 Channel 是无缓冲的，或者缓冲区为空，当前 Goroutine 被加入 `recvq` 队列。
+>    - 调用 `gopark` 挂起，等待被唤醒。
+> 4. **唤醒发送者（如果有等待的发送者）**：
+>    - 如果 `sendq` 队列不为空，从第一个等待的发送者获取数据（或直接写入缓冲区），并唤醒其 Goroutine。
+>
+> #### **2.3 关闭 Channel（`close(ch)`）**
+>
+> 1. **加锁**：确保原子性。
+> 2. **标记 Channel 为关闭状态**：设置 `closed = 1`。
+> 3. **唤醒所有等待的 Goroutine**：
+>    - 将 `sendq` 和 `recvq` 队列中的所有 Goroutine 唤醒，接收者会收到零值，发送者会触发 panic。
+>
+> ---
+>
+> ### **3. 无缓冲 Channel vs 带缓冲 Channel**
+>
+> - **无缓冲 Channel（`make(chan T)`）**：
+>   - 发送和接收必须同步完成（直接传递数据，不经过缓冲区）。
+>   - 常用于 Goroutine 间的精确同步。
+> - **带缓冲 Channel（`make(chan T, size)`）**：
+>   - 允许在缓冲区未满时异步发送，或在缓冲区非空时异步接收。
+>   - 适用于解耦生产者和消费者，提高吞吐量。
+>
+> ---
+>
+> ### **4. 底层实现的优化**
+>
+> - **环形缓冲区**：通过 `sendx` 和 `recvx` 索引实现循环利用内存，避免频繁内存分配。
+> - **等待队列（`sendq` 和 `recvq`）**：通过双向链表管理阻塞的 Goroutine，确保公平唤醒（FIFO）。
+> - **零拷贝优化**：当发送者和接收者直接传递数据时，避免通过缓冲区复制数据。
+>
+> 
 
 ## slice
 
-#### 1️⃣ 底层结构
-
-```go
-type SliceHeader struct {
- Data uintptr
- Len  int
- Cap  int
-}
-```
-
-#### 2️⃣ 切片的深浅拷贝
-
-- 使用=操作符拷贝切片，这种就是浅拷贝
-- 使用[:]下标的方式复制切片，这种也是浅拷贝
-- 使用Go语言的内置函数copy()进行切片拷贝，这种就是深拷贝，
-
-#### 3️⃣ 空切片、零切片、nil切片
-
-- 切片
-
-我们把切片内部数组的元素都是零值或者底层数组的内容就全是 nil的切片叫做零切片，使用make创建的、长度、容量都不为0的切片就是零值切片：
-
-```go
-slice := make([]int,5) // 0 0 0 0 0
-slice := make([]*int,5) // nil nil nil nil nil
-```
-
-- nil切片
-
-nil切片的长度和容量都为0，并且和nil比较的结果为true，采用直接创建切片的方式、new创建切片的方式都可以创建nil切片：
-
-```go
-var slice []int
-var slice = *new([]int)
-```
-
-- 空切片
-
-空切片的长度和容量也都为0，但是和nil的比较结果为false，因为所有的空切片的数据指针都指向同一个地址 0xc42003bda0；使用字面量、make可以创建空切片：
-
-```go
-var slice = []int{}
-var slice = make([]int, 0)
-```
-
-空切片指向的 zerobase 内存地址是一个神奇的地址，从 Go 语言的源代码中可以看到它的定义：
-
-```go
-// base address for all 0-byte allocations
-var zerobase uintptr
-
-// 分配对象内存
-func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
- ...
- if size == 0 {
-  return unsafe.Pointer(&zerobase)
- }
-  ...
-}
-```
-
-#### 4️⃣ 扩容机制
-
-切片在扩容时会进行内存对齐，这个和内存分配策略相关。进行内存对齐之后，新 slice 的容量是要 大于等于老 slice 容量的 2倍或者1.25倍，当原 slice 容量小于 1024 的时候，新 slice 容量变成原来的 2 倍；原 slice 容量超过 1024，新 slice 容量变成原来的1.25倍。
-
-- 为什么？以我的理解，在1024一下通过两倍迅速的扩大空间，防止频繁的扩容耗时，而在**大容量时改为 1.25 倍增长** 避免浪费大量内存。
-
-
+> #### 1️⃣ 底层结构
+>
+> ```go
+> type SliceHeader struct {
+>  Data uintptr
+>  Len  int
+>  Cap  int
+> }
+> ```
+>
+> #### 2️⃣ 切片的深浅拷贝
+>
+> - 使用=操作符拷贝切片，这种就是浅拷贝
+> - 使用[:]下标的方式复制切片，这种也是浅拷贝
+> - 使用Go语言的内置函数copy()进行切片拷贝，这种就是深拷贝，
+>
+> #### 3️⃣ 空切片、零切片、nil切片
+>
+> - 切片
+>
+> 我们把切片内部数组的元素都是零值或者底层数组的内容就全是 nil的切片叫做零切片，使用make创建的、长度、容量都不为0的切片就是零值切片：
+>
+> ```go
+> slice := make([]int,5) // 0 0 0 0 0
+> slice := make([]*int,5) // nil nil nil nil nil
+> ```
+>
+> - nil切片
+>
+> nil切片的长度和容量都为0，并且和nil比较的结果为true，采用直接创建切片的方式、new创建切片的方式都可以创建nil切片：
+>
+> ```go
+> var slice []int
+> var slice = *new([]int)
+> ```
+>
+> - 空切片
+>
+> 空切片的长度和容量也都为0，但是和nil的比较结果为false，因为所有的空切片的数据指针都指向同一个地址 0xc42003bda0；使用字面量、make可以创建空切片：
+>
+> ```go
+> var slice = []int{}
+> var slice = make([]int, 0)
+> ```
+>
+> 空切片指向的 zerobase 内存地址是一个神奇的地址，从 Go 语言的源代码中可以看到它的定义：
+>
+> ```go
+> // base address for all 0-byte allocations
+> var zerobase uintptr
+> 
+> // 分配对象内存
+> func mallocgc(size uintptr, typ *_type, needzero bool) unsafe.Pointer {
+>  ...
+>  if size == 0 {
+>   return unsafe.Pointer(&zerobase)
+>  }
+>   ...
+> }
+> ```
+>
+> #### 4️⃣ 扩容机制
+>
+> 切片在扩容时会进行内存对齐，这个和内存分配策略相关。进行内存对齐之后，新 slice 的容量是要 大于等于老 slice 容量的 2倍或者1.25倍，当原 slice 容量小于 1024 的时候，新 slice 容量变成原来的 2 倍；原 slice 容量超过 1024，新 slice 容量变成原来的1.25倍。
+>
+> - 为什么？以我的理解，在1024一下通过两倍迅速的扩大空间，防止频繁的扩容耗时，而在**大容量时改为 1.25 倍增长** 避免浪费大量内存。
+>
+> 
 
 # 并发
 
 ## GMP模型
 
-<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250203%E4%B8%8B%E5%8D%8814847493.png" alt="image-20250203下午14847493" style="zoom:50%;" />
-
-- 新建 `G` 时，新`G`会优先加入到 `P` 的本地队列；如果本地队列满了，则会把本地队列中一半的 `G` 移动到全局队列。
-- `P` 的本地队列为空时，就从全局队列里去取。
-
-
-
-### 1. Goroutine（G）
-
-- Goroutine 是 Go 中的并发执行单元，类似于线程，但比线程更加轻量级。每个 Goroutine 有独立的栈空间，栈的大小会动态扩展，初始栈大小很小（约 2KB）。
-- Goroutine 是由 Go 运行时调度的，并不直接对应操作系统线程，而是通过 GMP 模型在多个 OS 线程上高效调度。
-
-### 2. Machine（M）
-
-- M 代表操作系统线程，是 Go 运行时用来实际执行 Goroutine 的实体。
-- 每个 M 运行时负责执行 Goroutine 的代码，M 可以是操作系统的内核线程，Go 运行时会根据需要动态地创建或销毁 M。
-- M 负责执行具体的计算任务，它与 Goroutine 是一对多的关系，一个 M 可以执行多个 Goroutine，但一个 Goroutine 在某一时刻只能在一个 M 上执行。
-- 初始化数量：Go程序启动时，**初始M的数量通常等于`GOMAXPROCS`的值**（即逻辑处理器的数量，默认等于CPU核心数）。
-
-### 3. Processor（P）
-
-- P 代表逻辑处理器，用来控制 Goroutine 的调度。P 的数量通常由用户通过 `GOMAXPROCS` 设置，表示可以同时运行 Goroutine 的最大并发数量（即逻辑 CPU 核心数）。
-- P 管理一个队列，队列中保存待执行的 Goroutine。当 P 和 M 关联时，P 会将自己队列中的 Goroutine 分配给 M 执行。
-- 每个 P 只会绑定一个 M，M 只能在与其关联的 P 上调度 Goroutine。
-- P 的数量限制了系统的并发度，即即使有很多 M 和 Goroutine，也只有 P 允许的数量并发执行。
-
-### GMP 模型的工作原理
-
-1. 当程序启动时，Go 运行时会初始化一组 P（逻辑处理器），P 的数量可以通过 `runtime.GOMAXPROCS` 设置，默认值是系统 CPU 核心数。
-2. Goroutine 被创建时，运行时会将它放入某个 P 的本地队列中。
-3. M 是操作系统的线程，当 M 启动时，它需要与一个 P 关联才能开始执行 Goroutine。P 决定将哪些 Goroutine 分配给 M 运行。
-4. 如果 M 发现 P 的队列中没有可运行的 Goroutine，它会尝试从其他 P 的队列中窃取 Goroutine 来执行，这称为工作窃取（**work stealing**）。
-5. 当一个 M 处于 I/O 阻塞状态或发生系统调用时，M 会释放 P，让其他 M 可以利用这个 P 继续执行 Goroutine。
-6. 如果没有足够的 M 来运行 P 队列中的任务，Go 运行时会动态创建新的 M，反之如果有多余的 M，M 也会被销毁。
-
-
-
-###  work stealing 
-
-当本线程⽆可运行的G时，尝试从其他线程绑定的P偷取G，⽽不是销毁线程。先全局队列，后本地队列
-
-### hand off
-
-当本线程因为G进行系统调用阻塞时，线程释放绑定的P，把P转移给其他空闲的线程执⾏。
-
-
-
-### go func()在GMP上的流程
-
-- 创建G ——》绑定到执行当前操作的M上的本地队列中，如果满了则放入全局队列 ——〉M调度并执行G ——》时间片消耗完之后加入本地队列
-
-- 当G发生阻塞，此时唤醒一个休眠的M或者新建来接管当前的P，之后阻塞的G与之前的M捆绑，当G唤醒之后被放入全局队列，旧的M加入休眠的M队列或销毁
-
-![image-20250204下午20930874](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250204%E4%B8%8B%E5%8D%8820930874.png)
-
-#### 本地队列没有G了，那么会先去全局队列里拿还是先去其他P的队列里拿
-
-1️⃣ **先尝试从全局运行队列（Global Queue）获取 G**
-
-​	•	P **首先** 会去 **全局队列** 取 G，因为全局队列存放的是新建的或因系统调用被放回的 G。
-
-​	•	取的数量通常是 **最多 32 个** 或全局队列里的一半（取较小值）。
-
-
-
-2️⃣ **如果全局队列为空，则尝试从其他 P 偷取（Work Stealing）**
-
-​	•	P **随机** 选择 **其他 P 的本地队列**，尝试**偷取**（Work Stealing）一半的 G。
-
-​	•	这种机制可以防止某些 P 任务过多，而另一些 P 处于空闲状态，提高调度效率。
-
-
-
-3️⃣ **如果仍然没有可运行的 G，那么 P 会进入休眠状态**
-
-​	•	P 会通过 park 进入**休眠**状态，等待新的 G 可执行。
-
-​	•	如果所有 P 都没有 G，那么 M（操作系统线程） 也可能进入休眠，最终 runtime 可能会进入 idle 状态。
-
-
-
-
+> <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250203%E4%B8%8B%E5%8D%8814847493.png" alt="image-20250203下午14847493" style="zoom:50%;" />
+>
+> - 新建 `G` 时，新`G`会优先加入到 `P` 的本地队列；如果本地队列满了，则会把本地队列中一半的 `G` 移动到全局队列。
+> - `P` 的本地队列为空时，就从全局队列里去取。
+>
+> 
+>
+> ### 1. Goroutine（G）
+>
+> - Goroutine 是 Go 中的并发执行单元，类似于线程，但比线程更加轻量级。每个 Goroutine 有独立的栈空间，栈的大小会动态扩展，初始栈大小很小（约 2KB）。
+> - Goroutine 是由 Go 运行时调度的，并不直接对应操作系统线程，而是通过 GMP 模型在多个 OS 线程上高效调度。
+>
+> ### 2. Machine（M）
+>
+> - M 代表操作系统线程，是 Go 运行时用来实际执行 Goroutine 的实体。
+> - 每个 M 运行时负责执行 Goroutine 的代码，M 可以是操作系统的内核线程，Go 运行时会根据需要动态地创建或销毁 M。
+> - M 负责执行具体的计算任务，它与 Goroutine 是一对多的关系，一个 M 可以执行多个 Goroutine，但一个 Goroutine 在某一时刻只能在一个 M 上执行。
+> - 初始化数量：Go程序启动时，**初始M的数量通常等于`GOMAXPROCS`的值**（即逻辑处理器的数量，默认等于CPU核心数）。
+>
+> ### 3. Processor（P）
+>
+> - P 代表逻辑处理器，用来控制 Goroutine 的调度。P 的数量通常由用户通过 `GOMAXPROCS` 设置，表示可以同时运行 Goroutine 的最大并发数量（即逻辑 CPU 核心数）。
+> - P 管理一个队列，队列中保存待执行的 Goroutine。当 P 和 M 关联时，P 会将自己队列中的 Goroutine 分配给 M 执行。
+> - 每个 P 只会绑定一个 M，M 只能在与其关联的 P 上调度 Goroutine。
+> - P 的数量限制了系统的并发度，即即使有很多 M 和 Goroutine，也只有 P 允许的数量并发执行。
+>
+> ### GMP 模型的工作原理
+>
+> 1. 当程序启动时，Go 运行时会初始化一组 P（逻辑处理器），P 的数量可以通过 `runtime.GOMAXPROCS` 设置，默认值是系统 CPU 核心数。
+> 2. Goroutine 被创建时，运行时会将它放入某个 P 的本地队列中。
+> 3. M 是操作系统的线程，当 M 启动时，它需要与一个 P 关联才能开始执行 Goroutine。P 决定将哪些 Goroutine 分配给 M 运行。
+> 4. 如果 M 发现 P 的队列中没有可运行的 Goroutine，它会尝试从其他 P 的队列中窃取 Goroutine 来执行，这称为工作窃取（**work stealing**）。
+> 5. 当一个 M 处于 I/O 阻塞状态或发生系统调用时，M 会释放 P，让其他 M 可以利用这个 P 继续执行 Goroutine。
+> 6. 如果没有足够的 M 来运行 P 队列中的任务，Go 运行时会动态创建新的 M，反之如果有多余的 M，M 也会被销毁。
+>
+> 
+>
+> ###  work stealing 
+>
+> 当本线程⽆可运行的G时，尝试从其他线程绑定的P偷取G，⽽不是销毁线程。先全局队列，后本地队列
+>
+> ### hand off
+>
+> 当本线程因为G进行系统调用阻塞时，线程释放绑定的P，把P转移给其他空闲的线程执⾏。
+>
+> 
+>
+> ### go func()在GMP上的流程
+>
+> - 创建G ——》绑定到执行当前操作的M上的本地队列中，如果满了则放入全局队列 ——〉M调度并执行G ——》时间片消耗完之后加入本地队列
+>
+> - 当G发生阻塞，此时唤醒一个休眠的M或者新建来接管当前的P，之后阻塞的G与之前的M捆绑，当G唤醒之后被放入全局队列，旧的M加入休眠的M队列或销毁
+>
+> ![image-20250204下午20930874](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250204%E4%B8%8B%E5%8D%8820930874.png)
+>
+> #### 本地队列没有G了，那么会先去全局队列里拿还是先去其他P的队列里拿
+>
+> 1️⃣ **先尝试从全局运行队列（Global Queue）获取 G**
+>
+> ​	•	P **首先** 会去 **全局队列** 取 G，因为全局队列存放的是新建的或因系统调用被放回的 G。
+>
+> ​	•	取的数量通常是 **最多 32 个** 或全局队列里的一半（取较小值）。
+>
+> 
+>
+> 2️⃣ **如果全局队列为空，则尝试从其他 P 偷取（Work Stealing）**
+>
+> ​	•	P **随机** 选择 **其他 P 的本地队列**，尝试**偷取**（Work Stealing）一半的 G。
+>
+> ​	•	这种机制可以防止某些 P 任务过多，而另一些 P 处于空闲状态，提高调度效率。
+>
+> 
+>
+> 3️⃣ **如果仍然没有可运行的 G，那么 P 会进入休眠状态**
+>
+> ​	•	P 会通过 park 进入**休眠**状态，等待新的 G 可执行。
+>
+> ​	•	如果所有 P 都没有 G，那么 M（操作系统线程） 也可能进入休眠，最终 runtime 可能会进入 idle 状态。
+>
+> 
+>
+> 
 
 
 
@@ -708,10 +716,10 @@ func main() {
 >
 >   ```cpp
 >   #include <iostream>
->                     
+>                                   
 >   class Empty {};
 >   class Derived : public Empty {};
->                     
+>                                   
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;
@@ -731,6 +739,470 @@ func main() {
   - 在channel中传递信号，不传输值
 
 
+
+
+
+# 设计模式
+
+## 创建型模式
+
+### 工厂模式
+
+定义一个创建对象的接口，由子类决定实例化哪一个类
+
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250215%E4%B8%8B%E5%8D%8883412837.png" alt="image-20250215下午83412837" style="zoom:50%;" />
+
+```go
+package factory
+
+type Product interface {
+    Operation() string
+}
+
+type ProductA struct {}
+func (p *ProductA) Operation() string {
+    return "ProductA"
+}
+
+type ProductB struct {}
+func (p *ProductA) Operation() string {
+    return "ProductB"
+}
+
+type Factory interface {
+    CreateProduct() Product
+}
+
+type ConcreteFactoryA struct {}
+func (c *ConcreteFactoryA) CreateProduct() Product {
+    return &ProductA{}
+}
+
+type ConcreteFactoryB struct {}
+func (c *ConcreteFactoryA) CreateProduct() Product {
+    return &ProductB{}
+}
+
+func main() {
+  var factoryA Factory
+  factoryA = new(ConcreteFactoryA)
+  
+  var product Product
+  product = facotryA.CreateProduct()
+  product.Operation()
+}
+```
+
+
+
+### 单例模式
+
+饿汉：
+
+```go
+package singleton
+
+type singleton struct {}
+
+var instance = &singleton{}
+
+func GetInstance() *singleton {
+    return instance
+}
+```
+
+
+
+懒汉：
+
+```go
+//双检查锁
+package singleton
+
+import "sync"
+
+type singleton struct {}
+
+var (
+    instance *singleton
+    mu       sync.Mutex
+)
+
+// 传统双重检查锁实现
+func GetInstance() *singleton {
+    if instance == nil { // 第一次检查
+        mu.Lock()
+        defer mu.Unlock()
+        
+        if instance == nil { // 第二次检查
+            instance = &singleton{}
+        }
+    }
+    return instance
+}
+
+
+//sync.Once
+package singleton
+
+import "sync"
+
+type singleton struct {}
+
+var once sync.Once
+var instance *singleton
+
+
+func GetInstance() *singleton {
+    once.Do(func() {
+        instance = &singleton{}
+    })
+    return instance
+}
+```
+
+
+
+## 结构型模式
+
+### 代理模式
+
+```go
+package proxy
+
+import "fmt"
+
+type RealSubject interface {
+    Request()
+}
+
+type RealSubjectImpl struct {}
+
+func (r *RealSubjectImpl) Request() {
+    fmt.Println("RealSubject: Handling request")
+}
+
+type Proxy struct {
+    realSubject RealSubject
+}
+
+func (p *Proxy) Request() {
+    fmt.Println("Proxy: Logging request")
+    if p.realSubject == nil {
+        p.realSubject = &RealSubjectImpl{}
+    }
+    p.realSubject.Request()
+}
+```
+
+### 装饰器模式
+
+通过将功能动态地附加到对象上，来扩展对象的功能，而不改变对象本身的结构
+
+```go
+package main
+
+import "fmt"
+
+// Component 接口，定义了基本行为
+type Coffee interface {
+    Cost() int
+}
+
+// SimpleCoffee 具体组件，实现了 Coffee 接口
+type SimpleCoffee struct {}
+
+func (c *SimpleCoffee) Cost() int {
+    return 5 // 基础咖啡的价格
+}
+
+// Decorator 装饰器，包含对 Component 的引用
+type CoffeeDecorator struct {
+    coffee Coffee
+}
+
+func (d *CoffeeDecorator) Cost() int {
+    return d.coffee.Cost() // 继承自 Coffee 的 Cost 方法
+}
+
+// MilkDecorator 具体装饰器，为 Coffee 增加牛奶
+type MilkDecorator struct {
+    CoffeeDecorator
+}
+
+func (m *MilkDecorator) Cost() int {
+    return m.coffee.Cost() + 2 // 添加牛奶的费用
+}
+
+// SugarDecorator 具体装饰器，为 Coffee 增加糖
+type SugarDecorator struct {
+    CoffeeDecorator
+}
+
+func (s *SugarDecorator) Cost() int {
+    return s.coffee.Cost() + 1 // 添加糖的费用
+}
+
+func main() {
+    // 创建一个简单的咖啡
+    coffee := &SimpleCoffee{}
+    fmt.Println("Simple Coffee Cost:", coffee.Cost())
+
+    // 使用 MilkDecorator 和 SugarDecorator 装饰咖啡
+    milkCoffee := &MilkDecorator{CoffeeDecorator{coffee}}
+    fmt.Println("Milk Coffee Cost:", milkCoffee.Cost())
+
+    sugarMilkCoffee := &SugarDecorator{CoffeeDecorator{milkCoffee}}
+    fmt.Println("Milk and Sugar Coffee Cost:", sugarMilkCoffee.Cost())
+}
+```
+
+### 适配器模式
+
+将一个类的接口转换成客户端所期望的另一个接口，从而使原本由于接口不匹配而无法一起工作的类能够协同工作。
+
+```go
+package main
+
+import "fmt"
+
+// 目标接口：新的系统需要的接口
+type Sensor interface {
+    ReadData() float64
+}
+
+// 适配者：旧的系统接口，无法直接使用
+type OldSystem struct {}
+
+func (o *OldSystem) GetTemperature() float64 {
+    return 25.5 // 模拟返回温度值
+}
+
+// 适配器：将 OldSystem 的接口适配成 Sensor 接口
+type SensorAdapter struct {
+    oldSystem *OldSystem
+}
+
+func (a *SensorAdapter) ReadData() float64 {
+    // 调用旧系统的 GetTemperature 方法
+    return a.oldSystem.GetTemperature()
+}
+
+func main() {
+    // 创建旧系统实例
+    oldSystem := &OldSystem{}
+    
+    // 使用适配器将旧系统适配成新的接口
+    sensor := &SensorAdapter{oldSystem: oldSystem}
+
+    // 使用新的接口调用
+    fmt.Printf("Temperature: %.2f\n", sensor.ReadData())
+}
+```
+
+
+
+## 行为型模式
+
+### 策略模式
+
+定义一系列算法，将每一个算法封装起来，并使它们可以相互替换。
+
+```go
+package strategy
+
+import "fmt"
+
+type Strategy interface {
+    Execute(a, b int) int
+}
+
+type AddStrategy struct {}
+func (s *AddStrategy) Execute(a, b int) int {
+    return a + b
+}
+
+type SubtractStrategy struct {}
+func (s *SubtractStrategy) Execute(a, b int) int {
+    return a - b
+}
+
+type Context struct {
+    strategy Strategy
+}
+
+func (c *Context) SetStrategy(strategy Strategy) {
+    c.strategy = strategy
+}
+
+func (c *Context) ExecuteStrategy(a, b int) int {
+    return c.strategy.Execute(a, b)
+}
+```
+
+
+
+### 观察者模式
+
+允许对象在其状态发生变化时通知依赖它的所有对象
+
+```go
+package observer
+
+import "fmt"
+
+type Observer interface {
+    Update(message string)
+}
+
+type ConcreteObserver struct {
+    name string
+}
+
+func (o *ConcreteObserver) Update(message string) {
+    fmt.Printf("%s received message: %s\n", o.name, message)
+}
+
+type Subject interface {
+    Attach(observer Observer)
+    Detach(observer Observer)
+    Notify(message string)
+}
+
+type ConcreteSubject struct {
+    observers []Observer
+}
+
+func (s *ConcreteSubject) Attach(observer Observer) {
+    s.observers = append(s.observers, observer)
+}
+
+func (s *ConcreteSubject) Detach(observer Observer) {
+    for i, o := range s.observers {
+        if o == observer {
+            s.observers = append(s.observers[:i], s.observers[i+1:]...)
+            break
+        }
+    }
+}
+
+func (s *ConcreteSubject) Notify(message string) {
+    for _, observer := range s.observers {
+        observer.Update(message)
+    }
+}
+```
+
+
+
+# GIN
+
+```go
+package main
+
+import "github.com/gin-gonic/gin"
+
+func main() {
+	r := gin.Default()
+	r.GET("/ping", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "pong",
+		})
+	})
+	r.Run() // 监听并在 0.0.0.0:8080 上启动服务
+}
+```
+
+
+
+## bind
+
+绑定传入参数，对参数进行类型校验（[可自定义验证器](https://docs.fengfengzhidao.com/#/docs/Gin%E6%A1%86%E6%9E%B6%E6%96%87%E6%A1%A3/4.bind%E7%BB%91%E5%AE%9A%E5%99%A8)）
+
+- `ShouldBind`：`ShouldBindJSON`、`ShouldBindQuery`、`ShouldBindUri`...
+
+###  验证器
+
+```go
+type UserInfo struct {
+  Username string `json:"username" binding:"required" msg:"用户名不能为空"`
+  Password string `json:"password" binding:"min=3,max=6" msg:"密码长度不能小于3大于6"`
+  Email    string `json:"email" binding:"email" msg:"邮箱地址格式不正确"`
+}
+
+```
+
+- 常用校验器
+
+```go
+// 不能为空，并且不能没有这个字段
+required： 必填字段，如：binding:"required"  
+
+// 针对字符串的长度
+min 最小长度，如：binding:"min=5"
+max 最大长度，如：binding:"max=10"
+len 长度，如：binding:"len=6"
+
+// 针对数字的大小
+eq 等于，如：binding:"eq=3"
+ne 不等于，如：binding:"ne=12"
+gt 大于，如：binding:"gt=10"
+gte 大于等于，如：binding:"gte=10"
+lt 小于，如：binding:"lt=10"
+lte 小于等于，如：binding:"lte=10"
+
+// 针对同级字段的
+eqfield 等于其他字段的值，如：PassWord string `binding:"eqfield=Password"`
+nefield 不等于其他字段的值
+
+
+- 忽略字段，如：binding:"-"
+
+```
+
+
+
+
+
+
+
+## 文件上传/下载
+
+- 上传
+
+```go
+func main() {
+	router := gin.Default()
+	// 为 multipart forms 设置较低的内存限制 (默认是 32 MiB)
+	router.MaxMultipartMemory = 8 << 20  // 8 MiB
+	router.POST("/upload", func(c *gin.Context) {
+		// 单文件
+		file, _ := c.FormFile("file")
+		log.Println(file.Filename)
+
+		dst := "./" + file.Filename
+		// 上传文件至指定的完整文件路径
+		c.SaveUploadedFile(file, dst)
+
+		c.String(http.StatusOK, fmt.Sprintf("'%s' uploaded!", file.Filename))
+	})
+	router.Run(":8080")
+}
+```
+
+如何使用 `curl`：
+
+```sh
+curl -X POST http://localhost:8080/upload \
+  -F "file=@/Users/appleboy/test.zip" \
+  -H "Content-Type: multipart/form-data"
+```
+
+
+
+
+
+## 中间件和路由                                 
 
 
 

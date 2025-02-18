@@ -12,6 +12,8 @@
 
 4️⃣ 询问本地DNS服务器（服务器本地缓存 —> 根域名服务器(.) —> 顶级域名服务器(.com) —> 权威DNS服务器(server.com)）
 
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250215%E4%B8%8B%E5%8D%8840330956.png" alt="image-20250215下午40330956" style="zoom:50%;" />
+
 #### 为什么DNS解析需要这么复杂
 
 1️⃣ **分散负载**：
@@ -145,7 +147,7 @@
 `4xx` 类状态码表示客户端发送的**报文有误**，服务器无法处理，也就是错误码的含义。
 
 - 「**400 Bad Request**」表示客户端请求的报文有错误，但只是个笼统的错误。
-- **401 Unauthorized**
+-   **401 Unauthorized**
 - 「**403 Forbidden**」表示服务器禁止访问资源，并不是客户端的请求出错。
 - 「**404 Not Found**」表示请求的资源在服务器上不存在或未找到，所以无法提供给客户端。
 
@@ -486,12 +488,6 @@ ECDHE（椭圆曲线 Diffie-Hellman Ephemeral）是一种基于椭圆曲线的�
 
 
 
-
-
-### 
-
-
-
 ## HTTP2
 
 ### 头部压缩
@@ -708,7 +704,7 @@ Range: bytes=500000-  # 从第 500000 字节开始
 
 ✅ **支持 Range 头**（服务器需解析 Range 并返回相应数据）。
 
-✅ **返回 Accept-Ranges: bytes** 头，表示支持范围请求。
+✅ **返回 Accept-Ranges: bytes**  表示服务器支持按字节范围（byte ranges）请求资源，表明可以进行断点续传
 
 ✅ **正确返回 206 Partial Content 状态码**。
 
@@ -953,7 +949,7 @@ https://mp.weixin.qq.com/s?__biz=MzU3Njk0MTc3Ng==&mid=2247486020&idx=1&sn=f7cf41
 
 **它的作用是将 TCP 头部中的 Window Size 乘以 2^S（S 为窗口缩放因子）。**
 
-**公式：**$\text{真实窗口大小} = \text{TCP 头部 Window Size} \times 2^S$**
+**公式：**$\text{真实窗口大小} = \text{TCP 头部 Window Size} \times 2^S$
 
 其中：
 
@@ -1103,11 +1099,37 @@ SO_REUSEADDR 作用：**如果当前启动进程绑定的 IP+PORT 与处于TIME_
 
 
 
+### 如何解决tcp粘包和拆包
+
+#### 什么是粘包和拆包
+
+**1️⃣ 粘包（Packet Sticking）**：**粘包** 指的是 **多个小数据包被合并到一起发送**，提高网络传输效率（Nagle 算法）
+
+**2️⃣ 拆包（Packet Splitting）****拆包** 指的是 **一个数据包被拆分成多个 TCP 报文进行发送**，导致接收方需要多次接收才能获得完整数据。**原因**：发送方 send() 发送的数据超过 TCP **MSS（最大段长度）**，TCP 会拆分数据以适应网络传输。TCP 不是面向消息的协议，无法保证一次 send() 的数据会被完整 recv() 读取。
+
+- 固定长度消息
+
+- 特殊字符作为边界
+
+  <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250130%E4%B8%8A%E5%8D%8810308714.png" alt="image-20250130上午10308714" style="zoom:50%;" />
+
+- 自定义消息结构
+
+  例如：
+
+  ```c
+  struct { 
+      u_int32_t message_length; 
+      char message_data[]; 
+  } message;
+  ```
+
+
+## 
+
 ## [tcp思维导图](../笔试面试总结/TCP建立链接前后异常问题.xmind)
 
 # IP
-
-
 
 - DHCP客户端端口：68， DHCP服务端端口：67
 - DNS端口：53
@@ -1119,6 +1141,14 @@ SO_REUSEADDR 作用：**如果当前启动进程绑定的 IP+PORT 与处于TIME_
 - ICMP功能：**确认 IP 包是否成功送达目标地址、报告发送过程中 IP 包被废弃的原因和改善网络设置等。**
 
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250124%E4%B8%8B%E5%8D%8830530839.png" alt="image-20250124下午30530839" style="zoom:50%;" />
+
+- 目标不可达：
+
+  > - 网络不可达代码为 `0`
+  > - 主机不可达代码为 `1`
+  > - 协议不可达代码为 `2`
+  > - 端口不可达代码为 `3`
+  > - 需要进行分片但设置了不分片位代码为 `4`：发送端主机发送 IP 数据报时，将 IP 首部的**分片禁止标志位**设置为`1`。根据这个标志位，途中的路由器遇到超过 MTU 大小的数据包时，不会进行分片，而是直接抛弃。
 
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250123%E4%B8%8B%E5%8D%88111812983.png" alt="image-20250123下午111812983" style="zoom:50%;" />
 
@@ -1255,29 +1285,72 @@ Authorization: Bearer <token>
 
 
 
-## 如何解决tcp粘包和拆包
 
-### 什么是粘包和拆包
+## URL和URI的区别
 
-**1️⃣ 粘包（Packet Sticking）**：**粘包** 指的是 **多个小数据包被合并到一起发送**，提高网络传输效率（Nagle 算法）
+URL（Uniform Resource Locator）和 URI（Uniform Resource Identifier）虽然在某些情况下可以互换使用，但它们的含义和作用是不同的：
 
-**2️⃣ 拆包（Packet Splitting）****拆包** 指的是 **一个数据包被拆分成多个 TCP 报文进行发送**，导致接收方需要多次接收才能获得完整数据。**原因**：发送方 send() 发送的数据超过 TCP **MSS（最大段长度）**，TCP 会拆分数据以适应网络传输。TCP 不是面向消息的协议，无法保证一次 send() 的数据会被完整 recv() 读取。
+**1️⃣ URI（统一资源标识符）**
 
-- 固定长度消息
+​	•	**定义**：URI 是一种通用概念，用来唯一标识互联网上的资源。
 
-- 特殊字符作为边界
+​	•	**作用**：URI 的作用是标识资源，可以通过 **名称** 或 **位置** 来确定一个资源。
 
-  <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250130%E4%B8%8A%E5%8D%8810308714.png" alt="image-20250130上午10308714" style="zoom:50%;" />
+​	•	**分类**：
 
-- 自定义消息结构
+URI 包括两种类型：
 
-  例如：
+​	•	**URL**：统一资源定位符，表示资源的具体位置（即地址）。
 
-  ```c
-  struct { 
-      u_int32_t message_length; 
-      char message_data[]; 
-  } message;
-  ```
+​	•	**URN**：统一资源名称，用来唯一命名资源，而不指明资源的位置。
 
-  
+​	•	**例子**：
+
+​	•	urn:isbn:9780131103627（URN：指一本书，ISBN号）
+
+​	•	http://www.example.com/index.html（URL：表示资源的地址）
+
+​	•	**总结**：URI 是一个更大的概念，URL 和 URN 都是 URI 的子集。
+
+**2️⃣ URL（统一资源定位符）**
+
+​	•	**定义**：URL 是一种特殊的 URI，它不仅标识了资源，还指明了如何访问这个资源的位置（例如协议、主机名、路径等）。
+
+​	•	**作用**：URL 是网络中最常用的形式，用来描述资源的具体位置及其访问方式。
+
+​	•	**组成部分**：
+
+​	•	**协议**：如 HTTP、HTTPS、FTP 等。
+
+​	•	**主机名/域名**：如 www.example.com。
+
+​	•	**端口号**（可选）：如 :8080。
+
+​	•	**路径**：如 /index.html。
+
+​	•	**查询字符串**（可选）：如 ?id=123。
+
+​	•	**片段标识符**（可选）：如 #section2。
+
+​	•	**例子**：
+
+​	•	http://www.example.com/index.html
+
+​	•	ftp://ftp.example.com/file.txt
+
+​	•	**总结**：URL 表示了资源的 **位置** 和 **访问方式**。
+
+**3️⃣ 主要区别**
+
+| **特性**         | **URI**                | **URL**                           |
+| ---------------- | ---------------------- | --------------------------------- |
+| **含义**         | 标识资源的统一标准     | 标识资源的具体位置                |
+| **是否包含位置** | 不一定包含资源的位置   | 必须包含资源的位置                |
+| **包含关系**     | URL 是 URI 的一种      | URL 是 URI 的子集                 |
+| **例子**         | urn:isbn:9780131103627 | http://www.example.com/index.html |
+
+**4️⃣ 类比帮助理解**
+
+
+
+可以把 **URI** 看作一个人的身份证号码，它唯一标识了这个人，而 **URL** 就像这个人的家庭住址，不仅能标识，还能告诉你去哪里找到他。

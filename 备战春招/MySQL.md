@@ -27,7 +27,45 @@
 
 ## 一条SQL语句执行顺序
 
+```mysql
+SELECT col1, SUM(col2) AS total
+FROM table1
+WHERE col3 = 'value'
+GROUP BY col1
+HAVING total > 100
+ORDER BY total DESC
+LIMIT 10;
+```
 
+**执行顺序解释**
+
+​	1.	**FROM table1**
+
+加载 table1 的所有数据。
+
+​	2.	**WHERE col3 = ‘value’**
+
+筛选出 col3 等于 'value' 的行。
+
+​	3.	**GROUP BY col1**
+
+按照 col1 分组，将同一组的行归为一组。
+
+​	4.	**SELECT col1, SUM(col2) AS total**
+
+计算每组中 col2 的总和，返回 col1 和聚合结果 total。
+
+​	5.	**HAVING total > 100**
+
+对分组后的结果进行过滤，保留 SUM(col2) 大于 100 的组。
+
+​	6.	**ORDER BY total DESC**
+
+按照聚合结果 total 的降序排列。
+
+​	7.	**LIMIT 10**
+
+返回前 10 条结果。
 
 
 
@@ -208,11 +246,11 @@ CREATE TABLE orders (
 
 - **左模糊匹配**
 
+- **联合索引非最左匹配**
+
 - **对索引使用函数**（Mysql8.0之后支持函数索引：对某个字段的函数值建立索引） or 对索引进行表达式运算
 
 - **对索引进行隐式转换**
-
-- **联合索引非最左匹配**
 
 - **在where子句中使用or**——建议用 UNION ALL 替代。
 
@@ -359,6 +397,28 @@ max_trx_id：这个并不是 m_ids 的最大值，而是**创建 Read View 时�
 
 
 
+## 不可重复读和幻读的区别
+
+**1️⃣ 幻读（Phantom Read）**
+
+​	•	**概念**：指同一个事务中，两次范围查询的**结果集行数**发生变化。
+
+​	•	例如：第一次查询 SELECT * FROM table WHERE age > 30 返回 5 行数据，之后另一个事务插入了一条符合条件的数据，再次查询时结果变为 6 行。
+
+​	•	**触发原因**：其他事务对表进行了**插入或删除操作**，导致查询的结果集变化。
+
+​	•	**发生场景**：多次范围查询（SELECT 带范围条件）。
+
+**2️⃣ 不可重复读（Non-Repeatable Read）**
+
+​	•	**概念**：指同一个事务中，多次读取同一行记录，数据内容发生了变化。
+
+​	•	例如：第一次读取 id=1 的记录值是 100，另一个事务修改了 id=1 的值为 200，当前事务再次读取时发现数据变了。
+
+​	•	**触发原因**：其他事务对某条记录**更新操作**导致数据变化。
+
+​	•	**发生场景**：对**单行记录**多次读取。
+
 ## 发生幻读的场景
 
 - 快照读怎么解决幻读？
@@ -439,7 +499,19 @@ select ... for update;
 
 ## 行级锁
 
-**加锁的对象是索引，加锁的基本单位是 next-key lock**，它是由记录锁和间隙锁组合而成的，**next-key lock 是前开后闭区间，而间隙锁是前开后开区间**。
+**加锁的对象是索引，加锁的基本单位是 next-key lock**，它是由记录锁和间隙锁组合而成的，**next-key lock 是==前开后闭==区间，而间隙锁是前开后开区间**。
+
+### 可重复读和读提交加锁方式
+
+- **可重复读（REPEATABLE READ）**：在 **REPEATABLE READ** 隔离级别中，MySQL 默认会使用 next-key lock 来保证事务的隔离性，避免幻读问题。
+
+- **读提交（READ COMMITTED）**：在 READ COMMITTED 中，MySQL **不会对间隙加锁**，只对命中的记录加记录锁（Record Lock）。
+
+
+
+
+
+
 
 - 加锁加在两索引的右边那一个，正无穷加在特殊标识`supremum pseudo-record` 上
 
@@ -491,6 +563,12 @@ select ... for update;
 
 ## 死锁
 
+### 死锁产生的场景
+
+
+
+**1️⃣间隙锁冲突**
+
 ![image-20250126下午30640397](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250126%E4%B8%8B%E5%8D%8830640397.png)
 
 1. 相同间隙锁可以共存：**间隙锁的意义只在于阻止区间被插入**，因此是可以共存的。**一个事务获取的间隙锁不会阻止另一个事务获取同一个间隙范围的间隙锁**（相同next-lock会被阻塞）
@@ -499,7 +577,41 @@ select ... for update;
 
 
 
-## 如何避免MySQL死锁
+**2️⃣ 不同顺序的更新操作**
+
+```mysql
+-- 事务A
+UPDATE table1 SET ... WHERE id = 1;  -- 持有 table1.id=1 的锁
+UPDATE table2 SET ... WHERE id = 2;  -- 尝试获取 table2.id=2 的锁
+
+-- 事务B
+UPDATE table2 SET ... WHERE id = 2;  -- 持有 table2.id=2 的锁
+UPDATE table1 SET ... WHERE id = 1;  -- 尝试获取 table1.id=1 的锁
+```
+
+
+
+**3️⃣ 混合读写**
+
+```mysql
+-- 事务A
+SELECT * FROM table1 WHERE id = 1 FOR UPDATE;  -- 锁住 table1.id=1
+UPDATE table2 SET ... WHERE id = 2;
+
+-- 事务B
+SELECT * FROM table2 WHERE id = 2 FOR UPDATE;  -- 锁住 table2.id=2
+UPDATE table1 SET ... WHERE id = 1;
+```
+
+
+
+4️⃣**唯一键冲突（Duplicate Key）**
+
+
+
+
+
+### 如何避免MySQL死锁
 
 1️⃣添加事务超时时间**设置合理的 innodb_lock_wait_timeout**
 
@@ -522,6 +634,26 @@ COMMIT;
 ```
 
 3️⃣ 减少锁定行数
+
+4️⃣ 合理使用索引，避免全表扫描
+
+5️⃣ **降低隔离级别**：如使用 `READ COMMITTED` 减少间隙锁。
+
+
+
+
+
+## 为什么update没加索引会锁全表
+
+全表扫描导致锁住整个表，主要是因为在没有索引的情况下，MySQL 的 InnoDB 存储引擎需要扫描表中的所有行，逐一判断是否符合 WHERE 条件。在此过程中，为了保证事务的隔离性和数据一致性，InnoDB 会对扫描到的所有行加锁，这最终导致锁住整个表。
+
+例如：
+
+```mysql
+UPDATE t SET col2 = 'new_value' WHERE col1 = 10;
+```
+
+InnoDB 无法通过索引定位满足 col1 = 10 的行，只能扫描表中的每一行。在扫描的过程中，InnoDB 必须对所有经过的行加锁（即使这些行最终不符合 WHERE 条件），<u>以防止其他事务在扫描期间插入、删除或修改数据。</u>
 
 # 日志
 
