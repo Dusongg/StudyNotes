@@ -716,10 +716,10 @@ func main() {
 >
 >   ```cpp
 >   #include <iostream>
->                                   
+>                                     
 >   class Empty {};
 >   class Derived : public Empty {};
->                                   
+>                                     
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;
