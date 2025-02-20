@@ -508,6 +508,189 @@ func usePool() {
 
 
 
+## 内存泄漏
+
+> 在 Go 语言中，虽然垃圾回收（GC）能自动管理内存，但若代码编写不当，仍可能导致 **内存泄漏**（即分配的内存无法被回收）。以下是常见的场景及示例：
+>
+> ---
+>
+> ### 一、Goroutine 泄漏
+> **原因**：启动的 Goroutine 因阻塞而无法退出，导致其引用的内存无法释放。  
+> **典型场景**：
+> 1. **未关闭的 Channel 导致阻塞**：
+>    ```go
+>    func leak() {
+>        ch := make(chan int)
+>        go func() {
+>            val := <-ch  // 等待数据，但 ch 永远不会被写入
+>            fmt.Println(val)
+>        }()
+>    }
+>    ```
+>    **解决**：确保 Channel 有明确的关闭逻辑或超时机制。
+>
+> 2. **无限循环未退出**：
+>    ```go
+>    func leak() {
+>        for {
+>            go func() {
+>                // 无限运行的 Goroutine
+>                time.Sleep(1 * time.Second)
+>            }()
+>        }
+>    }
+>    ```
+>    **解决**：使用 `context.Context` 或 `done` Channel 控制 Goroutine 生命周期。
+>
+> ---
+>
+> ### 二、未释放资源
+> **原因**：打开的资源（文件、网络连接等）未关闭，导致相关内存无法释放。  
+> **示例**：
+> ```go
+> func openFiles() {
+>     for {
+>         file, _ := os.Open("data.txt")
+>         // 使用 file 但未调用 file.Close()
+>     }
+> }
+> ```
+> **解决**：使用 `defer` 或显式调用 `Close()` 释放资源。
+>
+> ---
+>
+> ### 三、全局变量或缓存无限增长
+> **原因**：全局缓存（如 `map`）未设置淘汰策略，持续添加数据导致内存占用上升。  
+> **示例**：
+> ```go
+> var cache = make(map[string][]byte)
+> 
+> func addToCache(key string, data []byte) {
+>     cache[key] = data  // 缓存不断增长，无清理逻辑
+> }
+> ```
+> **解决**：使用带容量限制的缓存（如 LRU 缓存库），或定期清理。
+>
+> ---
+>
+> ### 四、循环引用与根对象
+> **原因**：虽然 Go 的 GC 能处理循环引用，但如果对象被全局变量或长期存活的对象引用，仍会导致泄漏。  
+> **示例**：
+> ```go
+> var global *Object
+> 
+> type Object struct {
+>     child *Object
+> }
+> 
+> func createCycle() {
+>     a := &Object{}
+>     b := &Object{}
+>     a.child = b
+>     b.child = a
+>     global = a  // 全局变量引用，导致 a 和 b 无法释放
+> }
+> ```
+> **解决**：避免长期存活的对象引用无用数据。
+>
+> ---
+>
+> ### 五、未释放的 CGO 内存
+> **原因**：通过 CGO 分配的内存（如 C 的 `malloc`）未手动释放。  
+> **示例**：
+> ```go
+> /*
+> #include <stdlib.h>
+> */
+> import "C"
+> 
+> func leak() {
+>     ptr := C.malloc(1024)
+>     // 未调用 C.free(ptr)
+> }
+> ```
+> **解决**：使用 `defer C.free(ptr)` 确保释放。
+>
+> ---
+>
+> ### 六、时间包（time）的误用
+> **原因**：未停止的 `time.Ticker` 或 `time.Timer` 会持续占用内存。  
+> **示例**：
+> ```go
+> func leak() {
+>     ticker := time.NewTicker(1 * time.Second)
+>     defer ticker.Stop()  // 若忘记调用 Stop()，ticker 会持续触发
+>     for range ticker.C {
+>         // 业务逻辑
+>     }
+> }
+> ```
+> **解决**：始终调用 `ticker.Stop()` 或 `timer.Stop()`。
+>
+> ---
+>
+> ### 七、指针导致的意外引用
+> **原因**：切片或结构体中的指针字段可能意外引用大对象。  
+> **示例**：
+> ```go
+> type BigStruct struct {
+>     data [1 << 20]byte  // 1MB 大对象
+> }
+> 
+> func storePointer() {
+>     var slice []*BigStruct
+>     for {
+>         big := &BigStruct{}
+>         slice = append(slice, big)  // 切片持有大对象的指针
+>     }
+> }
+> ```
+> **解决**：及时清空无用的指针引用。
+>
+> ---
+>
+> ### 如何检测内存泄漏？
+> 1. **使用 `pprof` 工具**：
+>    ```go
+>    import _ "net/http/pprof"
+>    // 启动 HTTP 服务后，访问 /debug/pprof/heap 分析堆内存
+>    ```
+>
+> 2. **监控 Goroutine 数量**：
+>    ```go
+>    go func() {
+>        for {
+>            log.Println("Goroutines:", runtime.NumGoroutine())
+>            time.Sleep(1 * time.Second)
+>        }
+>    }()
+>    ```
+>
+> 3. **使用 `runtime.ReadMemStats`**：
+>    ```go
+>    var m runtime.MemStats
+>    runtime.ReadMemStats(&m)
+>    fmt.Println("HeapAlloc:", m.HeapAlloc)
+>    ```
+>
+> ---
+>
+> ### 总结
+> Go 中的内存泄漏通常由以下原因导致：
+> - **Goroutine 泄漏**（最常见）
+> - **未释放资源**（文件、网络连接）
+> - **全局缓存无限增长**
+> - **CGO 内存未释放**
+> - **误用时间包或第三方库**
+>
+> **关键预防措施**：
+> - 使用 `defer` 确保资源释放。
+> - 通过 `context` 或 `done` Channel 控制 Goroutine 生命周期。
+> - 对全局缓存设置容量或过期策略。
+> - 定期用 `pprof` 分析内存和 Goroutine。
+
+
+
 ## 指针
 
 ### uintptr
@@ -693,8 +876,6 @@ func main() {
 
 
 
-## 内存泄漏
-
 
 
 
@@ -716,10 +897,10 @@ func main() {
 >
 >   ```cpp
 >   #include <iostream>
->                                     
+>                                       
 >   class Empty {};
 >   class Derived : public Empty {};
->                                     
+>                                       
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;
