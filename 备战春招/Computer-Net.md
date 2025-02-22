@@ -1354,3 +1354,131 @@ URI 包括两种类型：
 
 
 可以把 **URI** 看作一个人的身份证号码，它唯一标识了这个人，而 **URL** 就像这个人的家庭住址，不仅能标识，还能告诉你去哪里找到他。
+
+
+
+
+
+## write，send，sendto区别和原理
+
+在 Linux 网络编程中，`send()`, `sendto()` 和 `write()` 都是用于数据发送的系统调用，但它们的应用场景和底层原理有所不同。以下是它们的核心区别和原理总结：
+
+---
+
+### **1. `write()`**
+- **适用场景**：
+
+  - 可用于所有文件描述符（包括普通文件、管道、Socket 等）。
+  - 在面向连接的 Socket（如 TCP）中，`write()` 等价于 `send()`（不带 `flags` 参数）。
+- **原型**：
+  ```c
+  ssize_t write(int fd, const void *buf, size_t count);
+  ```
+- **原理**：
+  - 内核将数据从用户缓冲区 `buf` 拷贝到内核发送缓冲区（TCP）或直接封装为数据报（UDP，需配合 `connect()`）。
+  - 阻塞模式下，若内核缓冲区满，则阻塞等待；非阻塞模式下直接返回 `EAGAIN` 或 `EWOULDBLOCK`。
+
+---
+
+### **2. `send()`**
+- **定位**：专为 Socket 设计的扩展函数，属于 POSIX Socket API。
+- **适用场景**：
+  - 仅用于 Socket 文件描述符。
+  - 面向连接的协议（如 TCP）或无连接协议（如 UDP，需先 `connect()` 绑定目标地址）。
+- **原型**：
+  ```c
+  ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+  ```
+- **关键参数**：
+  - `flags`：控制发送行为（如 `MSG_OOB` 发送带外数据、`MSG_DONTWAIT` 非阻塞发送）。
+- **原理**：
+  - 底层行为与 `write()` 类似，但支持更多 Socket 特有的选项。
+  - 若未建立连接（如 UDP 未 `connect()`），调用 `send()` 会失败并返回 `ENOTCONN`。
+
+---
+
+### **3. `sendto()`**
+- **定位**：专为无连接 Socket 设计的函数，属于 POSIX Socket API。
+- **适用场景**：
+  - 无连接的协议（如 UDP），需在每次发送时指定目标地址。
+  - 也可用于已连接的 Socket（此时忽略目标地址参数）。
+- **原型**：
+  ```c
+  ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+                const struct sockaddr *dest_addr, socklen_t addrlen);
+  ```
+- **关键参数**：
+  - `dest_addr`：目标地址结构体指针（如 IPv4 的 `struct sockaddr_in`）。
+  - `addrlen`：目标地址结构体长度。
+- **原理**：
+  - 内核将数据封装为 UDP 数据报，直接发送到指定地址。
+  - 无连接状态下调用 `sendto()` 是 UDP 的标准用法。
+
+---
+
+### **核心区别总结**
+| **特性**       | `write()`                 | `send()`                       | `sendto()`               |
+| -------------- | ------------------------- | ------------------------------ | ------------------------ |
+| **适用对象**   | 所有文件描述符            | Socket（需连接或 `connect()`） | Socket（无连接或有连接） |
+| **地址指定**   | 无（依赖已连接的 Socket） | 无（依赖已连接的 Socket）      | 必须显式指定目标地址     |
+| **参数扩展性** | 无 `flags` 参数           | 支持 `flags` 参数              | 支持 `flags` 参数        |
+| **典型用途**   | TCP 或已连接的 UDP        | TCP 或已连接的 UDP             | 无连接的 UDP             |
+
+---
+
+### **底层原理**
+- **内核缓冲区**：所有函数最终将数据拷贝到内核的发送缓冲区，由网络协议栈负责实际传输。
+- **阻塞/非阻塞**：行为由 Socket 的阻塞模式决定。
+- **数据分片**：TCP 自动处理数据分片和重传；UDP 直接发送数据报，无分片保证。
+
+合理选择函数可提高代码简洁性和性能（如 UDP 避免重复指定地址）。
+
+### udp也能调用connect？有什么用？
+
+UDP协议也可以使用 connect()，但与TCP不同，connect() 在UDP中并不建立连接，而是用来为套接字指定目标地址。这样做的主要目的是让你在发送数据时，不必每次都指定目标地址，从而简化发送过程。
+
+```cpp
+#include <iostream>
+#include <cstring>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+#define PORT 8080
+#define BUF_SIZE 1024
+
+int main() {
+    int sockfd;
+    struct sockaddr_in serverAddr;
+    char buffer[BUF_SIZE];
+
+    // 创建UDP套接字
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        std::cerr << "Socket creation failed!" << std::endl;
+        return -1;
+    }
+
+    memset(&serverAddr, 0, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(PORT);
+    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    // 使用 connect() 为套接字指定目标地址
+    if (connect(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+        std::cerr << "Connect failed!" << std::endl;
+        return -1;
+    }
+
+    std::string message = "Hello UDP Server with connect!";
+    send(sockfd, message.c_str(), message.length(), 0);  // 不需要指定目标地址，已通过 connect 绑定
+
+    // 接收响应
+    int n = recv(sockfd, (char *)buffer, BUF_SIZE, 0);
+    buffer[n] = '\0';
+    std::cout << "Server response: " << buffer << std::endl;
+
+    close(sockfd);
+    return 0;
+}
+```
+
