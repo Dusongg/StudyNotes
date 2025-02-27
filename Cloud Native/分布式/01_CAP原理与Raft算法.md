@@ -1,3 +1,7 @@
+![image-20250225下午23527663](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250225%E4%B8%8B%E5%8D%8823527663.png)
+
+![image-20250225下午23838954](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250225%E4%B8%8B%E5%8D%8823838954.png)
+
 # CAP理论
 
 - **C Consistency 一致性**：所有节点在同一时间看到的数据都是一致的

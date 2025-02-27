@@ -897,10 +897,10 @@ func main() {
 >
 >   ```cpp
 >   #include <iostream>
->                                       
+>                                             
 >   class Empty {};
 >   class Derived : public Empty {};
->                                       
+>                                             
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;
@@ -1383,7 +1383,71 @@ curl -X POST http://localhost:8080/upload \
 
 
 
-## 中间件和路由                                 
+## 中间件和路由   
+
+中间件：可用于**权限验证** or  **耗时统计**                       
+
+```go      
+func TimeMiddleware(c *gin.Context) {
+  startTime := time.Now()
+  c.Next()
+  since := time.Since(startTime)
+  // 获取当前请求所对应的函数
+  f := c.HandlerName()
+  fmt.Printf("函数 %s 耗时 %d\n", f, since)
+}
+```
+
+
+
+https://docs.fengfengzhidao.com/#/docs/Gin%E6%A1%86%E6%9E%B6%E6%96%87%E6%A1%A3/6.%E4%B8%AD%E9%97%B4%E4%BB%B6%E5%92%8C%E8%B7%AF%E7%94%B1
+
+```go
+package main
+
+import (
+  "fmt"
+  "github.com/gin-gonic/gin"
+)
+
+func middle(c *gin.Context) {
+  fmt.Println("middle ...in")
+}
+
+func main() {
+  router := gin.Default()
+
+  r := router.Group("/api").Use(middle)  // 可以链式，也可以直接r.Use(middle)
+  r.GET("/index", func(c *gin.Context) {
+    c.String(200, "index")
+  })
+  r.GET("/home", func(c *gin.Context) {
+    c.String(200, "home")
+  })
+
+  router.Run(":8080")
+}
+
+```
+
+- gin.Default
+
+gin.Default()默认使用了Logger和Recovery中间件，其中：
+
+Logger中间件将日志写入gin.DefaultWriter，即使配置了GIN_MODE=release。 Recovery中间件会recover任何panic。如果有panic的话，会写入500响应码。 如果不想使用上面两个默认的中间件，可以使用gin.New()新建一个没有任何默认中间件的路由。
+
+使用gin.New，如果不指定日志，那么在控制台中就不会有日志显示
+
+```go
+func Default() *Engine {
+  debugPrintWARNINGDefault()
+  engine := New()
+  engine.Use(Logger(), Recovery())
+  return engine
+}
+```
+
+## 日志
 
 
 
@@ -1505,5 +1569,93 @@ Initializing X in mypkg
 Executing init() in mypkg
 Executing init() in main
 Executing main()
+```
+
+
+
+
+
+## 两个协程交叉打印，从1-100
+
+- Go
+
+```go
+func main() {
+	var wg sync.WaitGroup
+
+	// 创建一个 channel，用于控制两个协程的顺序
+	ch1 := make(chan struct{})
+	ch2 := make(chan struct{})
+
+	// 第一个协程，打印奇数
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 1; i <= 100; i += 2 {
+			fmt.Println(i)
+			ch1 <- struct{}{}
+			<-ch2
+
+		}
+	}()
+
+	// 第二个协程，打印偶数
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 2; i <= 100; i += 2 {
+			<-ch1
+			fmt.Println(i)
+			ch2 <- struct{}{}
+		}
+	}()
+
+	// 启动打印过程，给第一个协程一个信号
+
+	wg.Wait()
+}
+```
+
+- C++
+
+```C++
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
+std::mutex mtx;
+std::condition_variable cv_odd, cv_even;
+bool is_odd_turn = true;  // 同步控制標誌
+
+void print_odd() {
+    for (int i = 1; i <= 100; i += 2) {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv_odd.wait(lock, []{ return is_odd_turn; }); // 等待奇數輪次
+        std::cout << "Odd: " << i << std::endl;
+        is_odd_turn = false;         // 切換到偶數輪次
+        cv_even.notify_one();        // 喚醒偶數線程
+    }
+}
+
+void print_even() {
+    for (int i = 2; i <= 100; i += 2) {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv_even.wait(lock, []{ return !is_odd_turn; }); // 等待偶數輪次
+        std::cout << "Even: " << i << std::endl;
+        is_odd_turn = true;          // 切換回奇數輪次
+        cv_odd.notify_one();         // 喚醒奇數線程
+    }
+}
+
+int main() {
+    std::thread t1(print_odd);
+    std::thread t2(print_even);
+    
+    t1.join();
+    t2.join();
+    
+    return 0;
+}
 ```
 

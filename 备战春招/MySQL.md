@@ -270,11 +270,11 @@ CREATE TABLE orders (
 
 
 
-## 一行数据如何存储
+## 🌟一行数据如何存储
 
 ![image-20250124下午114908064](https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250124%E4%B8%8B%E5%8D%88114908064.png)
 
-
+==MySQL 中每行数据的隐藏字段（例如，DB_ROW_ID 或其他管理字段）确实只存在于 **聚簇索引页** 中，而 **非聚簇索引页** 没有这些隐藏字段。==
 
 ## 什么是索引下推
 
@@ -511,10 +511,6 @@ select ... for update;
 
 
 
-
-
-
-
 - 加锁加在两索引的右边那一个，正无穷加在特殊标识`supremum pseudo-record` 上
 
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250126%E4%B8%8A%E5%8D%88122556330.png" alt="image-20250126上午122556330" style="zoom:50%;" />
@@ -630,8 +626,8 @@ COMMIT;
 
 -- 事务 B
 BEGIN;
-UPDATE table2 SET col = 'Z' WHERE id = 2;
 UPDATE table1 SET col = 'W' WHERE id = 1;
+UPDATE table2 SET col = 'Z' WHERE id = 2;
 COMMIT;
 ```
 
@@ -642,6 +638,8 @@ COMMIT;
 5️⃣ **降低隔离级别**：如使用 `READ COMMITTED` 减少间隙锁。
 
 
+
+### 死锁检测
 
 
 
@@ -829,6 +827,102 @@ InnoDB 无法通过索引定位满足 col1 = 10 的行，只能扫描表中的�
 
 
 
+
+# SQL实际场景题
+
+## 🆕🌟深度分页
+
+- **🙋什么是深度分页**
+
+MySQL 深度分页（deep pagination）指的是在查询中跳过大量数据后进行分页，比如你需要返回数据集中的第 10000 到 10001 行，或更深的页面。传统的 LIMIT 分页（如 LIMIT 10000, 10）会导致效率问题，尤其是在数据量庞大的情况下，因为 MySQL 需要扫描前面的所有行，才能跳过所需的数据。
+
+
+
+- **`order by` 和`limit`的执行时机**
+
+order by：ORDER BY 子句的执行时机是在查询的 **数据检索阶段**，也就是在数据库从表中检索出符合 **WHERE 条件的记录之后**
+
+limit：LIMIT 子句的执行时机是在 **排序** 或 **筛选** 之后、**返回结果** 之前
+
+- **解决方案：**
+
+1️⃣**主键/唯一索引定位法（游标分页）**
+
+```mysql
+-- 传统分页（深度分页慢）
+SELECT * FROM orders ORDER BY id LIMIT 100000, 10;
+
+-- 优化后（快速定位）
+SELECT * FROM orders 
+WHERE id > 上一页最大ID 
+ORDER BY id 
+LIMIT 10;
+```
+
+2️⃣ **延迟关联（Deferred Join）**
+
+先通过子查询快速获取主键，再关联回原表获取完整数据。
+
+```mysql
+-- 优化前
+#这个查询需要回表 100010 次（前 100000 + 10 条记录）。
+SELECT * FROM orders 
+ORDER BY created_at 
+LIMIT 100000, 10;
+
+
+SELECT * FROM orders 
+INNER JOIN (
+    SELECT id FROM orders 
+    ORDER BY created_at 
+    LIMIT 100000, 10
+) AS tmp USING(id);
+```
+
+> ### ！！！**为什么看似“只需要10次回表”，实际却需要100010次？**
+>
+> #### **关键机制：WHERE 条件与可见性检查**
+>
+> 假设表中有 `WHERE` 条件或事务隔离级别的约束（如 `READ COMMITTED`），MySQL 需要**逐条验证每条记录是否满足条件**。例如：
+>
+> ```sql
+> SELECT * FROM orders 
+> WHERE amount > 100      -- 假设存在过滤条件
+> ORDER BY created_at 
+> LIMIT 100000, 10;
+> ```
+>
+> - **验证过程**：
+>   即使索引中存储了 `created_at` 和 `id`，但 `amount` 字段不在索引中。
+>   为了判断 `amount > 100` 是否成立，**每条索引记录都必须回表查询完整数据**，才能进行过滤。
+>
+> #### **即使没有WHERE条件，也存在隐式检查**
+>
+> 在默认的 `REPEATABLE READ` 隔离级别下，MySQL 需要检查每条记录的可见性（MVCC 机制）。
+>
+> - 如果某些记录被其他事务修改或删除，引擎需通过回表确认数据版本是否可见。
+> - 这种检查可能强制触发回表操作。
+
+3️⃣ **使用搜索引擎（如Elasticsearch）**
+
+**核心思路**：将数据同步至ES，利用其高效分页机制。
+
+- **优势**：ES针对海量数据分页优化（如`search_after`）。
+- **代价**：增加数据同步复杂度和维护成本。
+
+4️⃣ **分区表优化**
+
+**核心思路**：按时间或范围分区，缩小查询数据量。
+
+**适用场景**：数据有明显冷热区分（如日志表）。
+
+```mysql
+-- 按月分区后，查询特定月份数据
+SELECT * FROM orders 
+WHERE partition_month = '2023-10' 
+ORDER BY id 
+LIMIT 100000, 10;
+```
 
 
 

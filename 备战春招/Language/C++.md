@@ -1,6 +1,6 @@
 
 
-# 关键字
+# 关键字 / 函数
 
 ## move实现
 
@@ -59,6 +59,10 @@ constexpr typename std::remove_reference<T>::type&& move(T&& t) noexcept {
 
   类型检查、错误处理（inline函数错误会在编译期报错）、作用域
 
+3. **inline变量（C++17）**
+
+​	使用inline修饰的变量允许在多个翻译单元中定义，但只会有一个实例存在。链接器会确保只有<u>一个变量实例被定义</u>。
+
 ##  static全局/普通全局/ static局部/普通局部
 
 1. 静态全局变量和普通全局变量的关系：
@@ -115,7 +119,7 @@ int main() {
 
 -  **被auto定义的变量必须被初始化**
 
--  使用auto关键字声明变量的类型，不能自动推导出`const`、`volatile`，也不能自动推导出引用类型
+-  使用auto关键字声明变量的类型，**不能自动推导出`const`、`volatile`，也不能自动推导出引用类型**
 
 ```cpp
 int main() {
@@ -195,57 +199,6 @@ void foo(auto x) { } // ❌ C++14 之前不支持
 ✅ 适合泛型编程（配合 decltype、template）
 
 🚫 **不适合简单类型**（如 int、double）
-
-
-
-
-
-## new/malloc/delete/free区别
-
-###  `new`表达式调用的详细步骤
-
-> 1. 调用一个名为`operator new`（或者`operator new[]`）的标准库函数，该函数分配一块足够大的、原始的、未命名的内存空间以便存储特定类型的对象（或者对象数组）。
->
-> 2. 编译器运行相应的构造函数以构造这些对象，并为其传入初始值。
-> 3. 对象被分配了空间并构造完成，返回一个指向该对象的指针
-
-### `delete`表达式调用的详细步骤
-
-> 1. 对sp所指的对象或者arr所指的数组中的元素执行对应的析构函数
-> 2. 编译器调用名为`operator delete`（或者`operator delete[]`）的标准库函数释放内存空间
-
-- 应用程序可以在全局作用域中定义`operator new`函数和`operator delete`函数，也可以将他们定义为成员函数，如果被分配（释放）对象是类类型，则编译器**首先在类以及基类的作用域中查找**
-- 并且我们可以通过作用域限定符令`new`或`delete`表达式直接执行全局作用域中的版本
-
-```cpp
-//删除类中的new和delete，并使用全局的new和delete
-class Test {
-public:
-	Test() = default;
-	Test(int x) : ele(x) {}
-	void* operator new(size_t size) = delete;
-	void operator delete(void* p) = delete;
-private:
-	int ele;
-};
-int main() { 
-	Test* t = new Test();    //error:无法调用已删除的函数
-	Test* t = ::new Test();   //使用全局作用域的new
-
-	delete t;     //error
-	::delete t;    //使用全局作用域的delete
-}
-```
-
-### [`operator new`接口和`operator delete`接口](https://en.cppreference.com/w/cpp/memory/new/operator_new)
-
-标准库定义了`operator new`函数和`operator delete`函数重载的8个重载版本。 
-
-1. 如果将operator new 或 operator delete 定义成类的成员函数时，他们是**==隐式静态==**的，因为`operator new`发生在对象构造之前，也就是说此时只能由类去调用，同样`operator delete`发生在对象析构之后
-2. 调用`operator new`或`operator new[]`时，第一个参数类型必须是`size_t`，且**不能有默认实参**，它表名存储该对象所需的字节数或存储数组中所有元素所需要的总空间
-3. 不允许重载`void* operator new(size_t, void*);`
-
-
 
 
 
@@ -365,7 +318,11 @@ int main() {
 
 1️⃣初始化 2️⃣安全性 3️⃣访问方式 4️⃣sizeof计算
 
+- **最佳实践**
 
+1. **默认使用引用**：优先用引用传递参数或返回局部对象，提升代码安全性和可读性。
+2. **必要时用指针**：动态内存、可选参数、多态操作或兼容 C 代码时使用指针。
+3. **避免原始指针**：现代 C++ 中优先用 `智能指针（unique_ptr/shared_ptr）` 管理资源，避免内存泄漏。
 
 
 
@@ -599,7 +556,7 @@ void Test()
 
 > 当我们使用基类的引用或指针调用基类中定义的一个函数是，我们并不知道该函数真正作用的对象是什么类型，因为它可能是一个基类的对象也可能是一个派生类的对象。如果该函数时虚函数，则直接运行时才会决定到底执行哪个版本，判断的依据是引用或指针所绑定的对象的真实类型；      (C++ Primer   P537）
 
-静态多态：例如函数重载、运算符重载、函数模板等 
+**静态多态：例如函数重载、运算符重载、函数模板等** 
 
 
 
@@ -689,15 +646,150 @@ C++中**虚函数表位于只读数据段（.rodata）；而虚函数则位于�
 
 **对象的构造顺序不支持虚函数调用**，在 C++ 中，**对象的构造是从基类到派生类** 逐步进行的。在构造基类时，**虚函数表（vtable）还未初始化**，虚函数的调用机制依赖于 vtable，而 vtable 只有在 **基类构造函数执行完** 之后，才能初始化为派生类的 vtable。
 
-# C++14/17/20
+# 🆕🌟C++14/17/20
 
+### C++14
 
+对于C++14，它是对C++11的小幅改进，增加了一些便利特性。比如泛型lambda、变量模板、返回类型推导等。
 
+1. **泛型 Lambda**
 
+   ```cpp
+   auto lambda = [](auto x, auto y) { return x + y; };  // 支持自动类型推导
+   ```
+
+   - **用途**：编写类型无关的通用 Lambda 表达式
+
+2. **变量模板**
+
+   ```cpp
+   template<typename T> constexpr T pi = T(3.1415926);  
+   float r = pi<float>;  // 类型明确的常量定义
+   ```
+
+   - **用途**：类型相关的常量/元编程
+
+3. **返回类型推导 (`auto` 函数)**
+
+   ```cpp
+   auto add(int a, int b) { return a + b; }  // 自动推导返回类型
+   ```
+
+   - **用途**：简化模板函数和复杂返回类型的书写
+
+### C++17
+
+C++17引入了更重要的特性，如结构化绑定、if constexpr、内联变量、文件系统库等
+
+1. **结构化绑定**
+
+   ```cpp
+   std::tuple<int, string> data{42, "test"};
+   auto [id, name] = data;  // 直接解包到变量
+   ```
+
+   - **用途**：简化多返回值处理（替代 `std::tie`）
+
+2. **`if constexpr` 编译期分支**
+
+   ```cpp
+   template<typename T> void process(T val) {
+       if constexpr (std::is_integral_v<T>) { /* 整数处理 */ }
+       else { /* 其他类型处理 */ }
+   }
+   ```
+
+   - **用途**：模板元编程中的条件编译
+
+3. **内联变量**
+
+   ```cpp
+   // 头文件中定义
+   inline constexpr double gravity = 9.8;  
+   ```
+
+   - **用途**：解决头文件多次包含问题（替代 `const static`）
+
+4. **`std::optional` 可选值**
+
+   ```cpp
+   std::optional<int> find(int key) { 
+       if (found) return value;  
+       else return std::nullopt;
+   }
+   ```
+
+   - **用途**：明确表达可能存在或不存在的值
+
+5. **`std::filesystem` 文件系统库**
+
+   ``` cpp
+   namespace fs = std::filesystem;
+   fs::create_directory("data");
+   for (auto& entry : fs::directory_iterator(".")) { /* 遍历文件 */ }
+   ```
+
+   - **用途**：跨平台文件操作
+
+### C++20
+
+C++20带来了更大的变化，比如概念(concepts)、协程(coroutines)、范围库(ranges)、模块(modules)等，这些虽然有些还在逐渐被编译器支持，但已经被广泛讨论和应用。
+
+1. **概念 (Concepts)**
+
+   ``` cpp
+   template<typename T> concept Number = requires(T a) { a + a; };
+   template<Number T> T add(T a, T b) { return a + b; }  // 约束模板类型
+   ```
+
+   - **用途**：增强模板类型约束，提升编译错误可读性
+
+2. **协程 (Coroutines)**
+
+   ``` cpp
+   generator<int> sequence() {
+       for (int i=0; ; ++i) co_yield i;  // 生成无限序列
+   }
+   ```
+
+   - **用途**：异步编程、惰性求值（需编译器支持）
+
+3. **范围库 (Ranges)**
+
+   ``` cpp
+   auto even = views::filter([](int x){ return x%2 ==0; });
+   for (int x : vec | even | views::take(3)) { /* 取前3个偶数 */ }
+   ```
+
+   - **用途**：声明式集合操作（替代传统循环）
+
+4. **模块 (Modules)**
+
+   ``` cpp
+   // math.ixx
+   export module math;
+   export int add(int a, int b) { return a + b; }
+   
+   // main.cpp
+   import math;  // 替代头文件包含
+   ```
+
+   - **用途**：加快编译速度，解决头文件包含顺序问题
+
+5. **三路比较运算符 (`<=>`)**
+
+   ``` cpp
+   struct Point { 
+       int x, y;
+       auto operator<=>(const Point&) const = default; // 自动生成比较操作
+   };
+   ```
+
+   - **用途**：简化自定义类型的比较运算符重载
 
 # STL
 
-## array/int[]/vector 
+## array/int[]/vector
 
 ```
 int a[] = {1, 2, 3};
@@ -718,6 +810,9 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 | **功能**             | 丰富（STL 成员函数）、范围for | 仅基本操作          | 支持 size()、赋值、范围for |
 | **能否整体赋值**     | ✅ 支持                        | ❌ 不支持            | ✅ 支持                     |
 | **能否 push_back()** | ✅ 支持                        | ❌ 不支持            | ❌ 不支持                   |
+| **安全性**           |                               |                     |                            |
+
+
 
 > [!WARNING]
 >
@@ -725,9 +820,144 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 
 
 
+## array和list的区别
+
+- 存储空间
+- 存储方式——》缓存友好性
+- 应用场景：list用于插入删除操作多， array随机访问
 
 
-# 其他
+
+## 讨论C++的map和unordered_map的区别，谈一谈心得
+
+底层实现， 效率， 稳定性， 有序无序
+
+> **1️⃣ std::map 和 std::unordered_map 的区别**
+>
+> **底层实现**
+>
+> ​	•	**std::map**：底层通常使用**红黑树**（一种平衡二叉搜索树）来存储元素。这意味着map中的元素是有序的，按照键值进行排序。
+>
+> ​	•	**std::unordered_map**：底层使用**哈希表**来存储元素，元素是无序的，哈希表根据哈希函数来决定元素的存储位置。
+>
+> **键的顺序**
+>
+> ​	•	**std::map**：会自动按键的顺序（根据键的比较操作符）对元素进行排序。默认是升序排列，可以自定义排序方式。
+>
+> ​	•	**std::unordered_map**：元素的顺序是基于哈希函数计算的，因此它不保证任何顺序。插入顺序和遍历顺序可能不同。
+>
+> **查找效率**
+>
+> ​	•	**std::map**：由于底层是平衡二叉树，查找、插入、删除操作的时间复杂度是**O(log n)**。
+>
+> ​	•	**std::unordered_map**：由于使用哈希表，查找、插入和删除操作的平均时间复杂度是**O(1)**。但是，在哈希冲突严重的情况下，最坏情况下复杂度为**O(n)**。
+>
+> **内存使用**
+>
+> ​	•	**std::map**：由于底层是树结构，每个元素除了存储数据外，还需要额外的指针来表示树的结构，因此内存开销相对较大。
+>
+> ​	•	**std::unordered_map**：由于是哈希表实现，哈希表内部需要额外的内存来存储桶（bucket）和解决冲突，因此也会有一定的内存开销，但一般来说，unordered_map的内存开销要比map小。
+>
+> **排序**
+>
+> ​	•	**std::map**：自动排序，支持有序遍历。
+>
+> ​	•	**std::unordered_map**：元素无序，不能按顺序遍历。
+>
+> **操作稳定性**
+>
+> ​	•	**std::map**：插入操作是**稳定的**，因为插入时会维护有序性。
+>
+> ​	•	**std::unordered_map**：插入操作可能会重新调整哈希表的结构，因此性能不稳定，尤其在负载因子较高时。
+>
+> **2️⃣ 适用场景的选择**
+>
+> ​	•	**std::map**：
+>
+> ​	•	需要有序存储和按顺序遍历的场景，例如需要范围查询、排序或者查找大于或小于某个键的元素时。
+>
+> ​	•	当对元素的顺序要求严格时，使用map较为合适。
+>
+> ​	•	**std::unordered_map**：
+>
+> ​	•	需要快速查找、插入、删除的场景，特别是当不需要保持元素顺序时。比如频繁的查找操作，或者要处理大量的键值对并且对排序无要求时，unordered_map会有更高的性能表现。
+>
+> ​	•	当哈希冲突较少时，unordered_map可以提供接近常数时间复杂度的操作。
+>
+> 
+>
+> **3️⃣ 心得总结**
+>
+> ​	•	**性能上的考虑**：在很多情况下，unordered_map提供了更好的性能，尤其是当数据量大且不需要有序存储时。它的查找和插入操作时间复杂度是**O(1)**，而map是**O(log n)**。不过需要注意，unordered_map的性能很大程度上依赖于哈希函数的质量，哈希冲突过多时，unordered_map的性能会下降。
+>
+> ​	•	**内存与空间的权衡**：std::map由于需要维持树形结构，内存开销相对较高，而unordered_map的内存开销较小，但是由于哈希表实现的原因，也会占用一定的额外内存。
+>
+> ​	•	**有序与无序**：当需要元素的顺序时，使用map，它保证键值是有序的。反之，如果顺序不重要，只关心数据的快速查找、插入和删除，那么unordered_map是更合适的选择。
+>
+> ​	•	**哈希函数的选择**：unordered_map依赖于哈希函数的质量，选择一个合适的哈希函数是至关重要的，否则可能导致性能大幅下降。
+>
+> 
+>
+> **总结：**
+>
+> ​	•	**std::map**：适用于需要有序数据的场景，查找、插入、删除的时间复杂度为**O(log n)**。
+>
+> ​	•	**std::unordered_map**：适用于对查找、插入性能要求高且对元素顺序没有要求的场景，操作的时间复杂度为**O(1)**，但依赖于哈希函数的质量。
+>
+> 
+>
+> 根据具体的需求和场景，选择合适的容器可以大大提升程序的效率和可维护性。
+
+
+
+# 内存相关
+
+## new/malloc/delete/free区别
+
+###  `new`表达式调用的详细步骤
+
+> 1. 调用一个名为`operator new`（或者`operator new[]`）的标准库函数，该函数分配一块足够大的、原始的、未命名的内存空间以便存储特定类型的对象（或者对象数组）。
+>
+> 2. 编译器运行相应的构造函数以构造这些对象，并为其传入初始值。
+> 3. 对象被分配了空间并构造完成，返回一个指向该对象的指针
+
+### `delete`表达式调用的详细步骤
+
+> 1. 对sp所指的对象或者arr所指的数组中的元素执行对应的析构函数
+> 2. 编译器调用名为`operator delete`（或者`operator delete[]`）的标准库函数释放内存空间
+
+- 应用程序可以在全局作用域中定义`operator new`函数和`operator delete`函数，也可以将他们定义为成员函数，如果被分配（释放）对象是类类型，则编译器**首先在类以及基类的作用域中查找**
+- 并且我们可以通过作用域限定符令`new`或`delete`表达式直接执行全局作用域中的版本
+
+```cpp
+//删除类中的new和delete，并使用全局的new和delete
+class Test {
+public:
+	Test() = default;
+	Test(int x) : ele(x) {}
+	void* operator new(size_t size) = delete;
+	void operator delete(void* p) = delete;
+private:
+	int ele;
+};
+int main() { 
+	Test* t = new Test();    //error:无法调用已删除的函数
+	Test* t = ::new Test();   //使用全局作用域的new
+
+	delete t;     //error
+	::delete t;    //使用全局作用域的delete
+}
+```
+
+### [`operator new`接口和`operator delete`接口](https://en.cppreference.com/w/cpp/memory/new/operator_new)
+
+标准库定义了`operator new`函数和`operator delete`函数重载的8个重载版本。 
+
+1. 如果将operator new 或 operator delete 定义成类的成员函数时，他们是**==隐式静态==**的，因为`operator new`发生在对象构造之前，也就是说此时只能由类去调用，同样`operator delete`发生在对象析构之后
+2. 调用`operator new`或`operator new[]`时，第一个参数类型必须是`size_t`，且**不能有默认实参**，它表名存储该对象所需的字节数或存储数组中所有元素所需要的总空间
+3. 不允许重载`void* operator new(size_t, void*);`
+
+
 
 ## `malloc`是线程安全的吗？
 
@@ -746,7 +976,189 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 
 2️⃣ calloc(size_t num, size_t size)：**初始化为 0**，线程安全
 
-3️⃣ realloc(void *ptr, size_t new_size)：整 ptr 指向的已分配内存的大小，并可能搬移数据。
+3️⃣ realloc(void *ptr, size_t new_size)： ptr 指向的已分配内存的大小，并可能搬移数据。
+
+> ### **`realloc`**
+>
+> - **功能**：**调整**已分配内存块的大小（扩大或缩小）。
+>
+> - **参数**：`void* realloc(void* ptr, size_t new_size);`
+>
+> - **特点**：
+>
+>   - 若`new_size > 原大小`：扩展内存，**新增部分未初始化**。
+>   - 若`new_size < 原大小`：截断内存，剩余部分可能被释放。
+>   - 若`ptr`为`NULL`：等价于`malloc(new_size)`。
+>   - **可能移动内存位置**，原指针失效，需使用返回值。
+>
+> - **示例**：
+>
+>   ```c
+>   int* arr = (int*)malloc(10 * sizeof(int));
+>   arr = (int*)realloc(arr, 20 * sizeof(int)); // 扩展为20个int的空间
+>   ```
+
+## strcpy / memcpy / memmove
+
+### strcpy与memcpy的区别
+
+- **strcpy**：用于复制**以 null 结尾的 C 字符串**（即 char 数组）。它会复制源字符串的每个字符，直到遇到字符串的终止符 '\0'，并将其复制到目标数组中。
+
+- **memcpy**：用于复制**任意类型的内存数据**。它按字节复制数据，不关心数据内容的类型，也不处理字符串的结束符 '\0'。它需要指定复制的字节数。
+
+```c
+//strcpy:
+char *strcpy(char *dest, const char *src);
+
+//memcpy:
+void *memcpy(void *dest, const void *src, size_t n);
+```
+
+### memcpy与memmove的区别
+
+- memmove 能正确处理源和目标内存重叠的情况，而 memcpy 假设源和目标内存区域不重叠。
+
+```c
+void *memmove(void *dest, const void *src, size_t n) {
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+    
+    if (d < s || d >= s + n) {
+        // 没有重叠，正常按字节复制
+        while (n--) {
+            *d++ = *s++;
+        }
+    } else {
+        // 源区域在目标区域之后，需要从后向前复制
+        d += n;
+        s += n;
+        while (n--) {
+            *(--d) = *(--s);
+        }
+    }
+    
+    return dest;
+}
+```
+
+- memcpy 更高效，因为它不需要判断内存是否重叠，也没有处理内存重叠的额外逻辑。
+
+> - **安全性**：`memmove` 是 `memcpy` 的安全替代，始终优先用于不确定内存是否重叠的场景。
+> - **性能**：`memcpy` 在无内存重叠时可能更高效，但现代编译器的优化可能缩小两者的差距。
+> - **底层实现**：`memmove` 通过方向选择（从前向后或从后向前复制）确保数据完整性。
+
+
+
+## 结构体内存对齐规则与原因
+
+1. 每个成员的起始地址必须是其自身类型大小与编译器对齐值（可通过 `#pragma pack(n)` 指定）中的较小者的整数倍。
+2. 结构体的总大小必须是其最大成员对齐值的整数倍，不足时末尾填充。
+3. 嵌套结构体的对齐值取其自身最大成员对齐值，而非父结构体的对齐值。
+
+- **为什么要结构体对齐**
+
+> 1. **硬件要求**
+>    - **未对齐访问的代价**：某些处理器（如ARM、x86）对未对齐的内存访问会触发异常或需要多次内存操作。例如，读取一个4字节的 `int` 若起始于地址0x3，需两次内存读取并拼接数据。
+>    - **原子性操作限制**：硬件可能仅保证对齐数据的原子性访问。
+> 2. **性能优化**
+>    - **缓存行利用率**：内存对齐可确保数据跨越更少的缓存行（通常64字节），减少缓存未命中。例如，一个未对齐的 `double` 可能横跨两个缓存行，导致两次缓存加载。
+>    - **SIMD指令支持**：SSE/AVX等向量指令要求数据按特定对齐方式（如16/32字节）存储。
+> 3. **跨平台兼容性**
+>    - 不同体系结构（如x86、SPARC）的对齐要求可能不同，显式对齐可避免移植问题。例如，SPARC处理器对未对齐访问直接抛出总线错误。
+
+## 字节序：大端 or 小端
+
+为什么要有：不同硬件平台的架构不同，网络和主机的字节序可能也不同
+
+1）**大端序：** 高字节存储在内存的低地址处，低字节存储在高地址处。例如，对于16进制数0x12345678，大端序在内存中的存储方式是：12 34 56 78。
+
+2）**小端序：** 低字节存储在内存的低地址处，高字节存储在高地址处。对于同样的16进制数0x12345678，小端序在内存中的存储方式是：78 56 34 12。
+
+```c++
+bool isLittleEndian() {
+    uint16_t num = 1;
+    return *(reinterpret_cast<char*>(&num)) == 1;
+}
+```
+
+- **字节序转换**
+
+`htons()` 和 `htonl()` 用于将主机字节序转换为网络字节序（一般是大端），`ntohs()` 和 `ntohl()` 用于将网络字节序转换为主机字节序：
+
+```c
+#include <arpa/inet.h>
+#include <cstdint>
+#include <iostream>
+
+int main() {
+    uint32_t num = 0x12345678;
+    uint32_t n_num = htonl(num); // Host to Network Long
+    uint32_t h_num = ntohl(n_num); // Network to Host Long
+
+    std::cout << "Original: " << std::hex << num << std::endl;
+    std::cout << "Network Byte Order: " << std::hex << n_num << std::endl;
+    std::cout << "Converted Back: " << std::hex << h_num << std::endl;
+
+    return 0;
+}
+
+```
+
+
+
+## 空对象大小，为什么？ —— 对比go的`struct{}`
+
+**空类占1个字节**（类和对象大小通常相等）
+
+原因：
+
+- 保证每个对象有独立的地址，
+- 保证内存布局合理，比如对象数组
+- 1个字节不存放任何东西
+
+> [!NOTE]
+>
+> **特殊情况：继承可能导致空类占 0 字节**
+>
+> - 空基类优化——〉<u>C++ 允许空基类在子类中不额外占据空间，避免浪费内存。</u>
+>
+>   ```cpp
+>   #include <iostream>
+>             
+>   class Empty {};
+>   class Derived : public Empty {};
+>             
+>   int main() {
+>       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
+>       return 0;
+>   }
+>   ```
+>
+> 
+
+
+
+### 为什么go的空结构体大小为0
+
+Go 设计 struct{} 的初衷是**高效、简洁**，如果结构体不包含任何字段，它**不应该浪费任何内存**。这与 C++ 的设计不同，C++ 强制**对象必须有唯一的地址**，而 Go 不要求这一点。
+
+- 空结构体用途：（节省空间）
+  - map-》set
+  - 在channel中传递信号，不传输值
+
+
+
+# 其他
+
+## extern的作用
+
+- **声明变量或函数**：extern 关键字告诉编译器，这个变量或函数在其他地方定义，并且可以在当前文件中使用。它让编译器知道该符号（变量或函数）将在链接阶段找到。
+
+- **不会分配内存**：extern 不会为变量分配内存，它只是提供了一个对符号的声明。实际的内存分配和初始化将在定义中进行。
+
+
+
+
 
 
 
@@ -770,7 +1182,7 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 >
 >    ```bash
 >    g++ -c main.s -o main.o
->                                                    
+>                                                                                     
 >    objdump -d main.o  #机械码文件通过objdump查看
 >    ```
 >
@@ -781,10 +1193,6 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 >    ```bash
 >    g++ main.o -o main
 >    ```
-
-
-
-## 内存对齐规则与原因
 
 
 
@@ -807,49 +1215,84 @@ std::array<int, 3> b = a;  // ✅ 允许整体赋值
 
 1️⃣new/delete 2️⃣引用 3️⃣面向对象 4️⃣异常处理 5️⃣STL 6️⃣命名空间
 
-### 与Go的区别
+### 🆕🌟与Go的区别
 
+- 标准库容器
 
+- 第三方库，包管理
 
-## 空对象大小，为什么？ —— 对比go的`struct{}`
+  - C++：❌ 无官方工具（需用 vcpkg / Conan）依赖 CMake 和第三方工具
+  - Golang：✅ Go Modules 官方支持
 
-**空类占1个字节**（类和对象大小通常相等）
+- 并发模型
 
-原因：
-
-- 保证每个对象有独立的地址，
-- 保证内存布局合理，比如对象数组
-- 1个字节不存放任何东西
-
-> [!NOTE]
+> **C++线程模型1:1， 而Golang线程模型是M：N，他们两种各有什么优缺点**
 >
-> **特殊情况：继承可能导致空类占 0 字节**
+> - 调度延迟
+> - 切换开销
+> - 资源开销
 >
-> - 空基类优化——〉<u>C++ 允许空基类在子类中不额外占据空间，避免浪费内存。</u>
+> **适用场景**
 >
->   ```cpp
->   #include <iostream>
->                             
->   class Empty {};
->   class Derived : public Empty {};
->                             
->   int main() {
->       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
->       return 0;
->   }
->   ```
->
->   
+> - **C++ 1:1模型**
+>   ✅ 实时系统（自动驾驶控制）
+>   ✅ 高性能计算（OpenMP并行计算）
+>   ✅ 低延迟网络（DPDK高速报文处理）
+> - **Golang M:N 模型**
+>   ✅ 微服务架构（Envoy代理）
+>   ✅ Web服务器（处理10k+并发连接）
+>   ✅ 流处理系统（Kafka消费者组）
 
+- 类型系统
 
+  - C++支持隐式类型转换
+  - Golang禁止隐式类型转换
 
-### 为什么go的空结构体大小为0
+- 实现多态的方式
 
-Go 设计 struct{} 的初衷是**高效、简洁**，如果结构体不包含任何字段，它**不应该浪费任何内存**。这与 C++ 的设计不同，C++ 强制**对象必须有唯一的地址**，而 Go 不要求这一点。
+  - C++ 的多态主要通过 **虚函数（virtual function）** 和 **运行时多态（Runtime Polymorphism）** 实现。此外，还可以使用 **模板（Templates）** 实现 **编译时多态（Compile-time Polymorphism）**。
 
-- 空结构体用途：（节省空间）
-  - map-》set
-  - 在channel中传递信号，不传输值
+  - Go **不支持类继承**，但支持**接口（interface）（鸭子类型）**来实现多态。
+
+    ```go
+    package main
+    
+    import "fmt"
+    
+    // 定义接口
+    type Animal interface {
+        MakeSound()
+    }
+    
+    // Dog 结构体实现 Animal 接口
+    type Dog struct{}
+    func (d Dog) MakeSound() {
+        fmt.Println("Dog barks")
+    }
+    
+    // Cat 结构体实现 Animal 接口
+    type Cat struct{}
+    func (c Cat) MakeSound() {
+        fmt.Println("Cat meows")
+    }
+    
+    func main() {
+        var animal Animal
+    
+        animal = Dog{}
+        animal.MakeSound() // ✅ Dog barks
+    
+        animal = Cat{}
+        animal.MakeSound() // ✅ Cat meows
+    }
+    ```
+
+    
+
+- 应用场景：
+
+  - C++：交易系统、游戏引擎、嵌入式
+  - Golang：云原生、微服务、分布式
 
 
 
@@ -1024,49 +1467,96 @@ std::mutex Singleton::mutex_;
 
 ## 解释型语言和编译型语言的区别
 
-**1️⃣ 解释型语言（Interpreted Language）**
+> **1️⃣ 解释型语言（Interpreted Language）**
+>
+> ​	•	**执行方式：** 解释型语言通过解释器逐行解释源代码，并在运行时即时执行。也就是说，程序的每一行代码在执行时都会被解释器逐行读取并转换为机器码。
+>
+> ​	•	**执行过程：** 在运行时，解释器会逐行分析源代码，并执行相应的操作。每次执行时，解释器都需要重新解析源代码。
+>
+> ​	•	**常见语言：** Python、JavaScript、Ruby、PHP、Perl等。
+>
+> ​	•	**优缺点：**
+>
+> ​	•	**优点：**
+>
+> ​	•	**跨平台性强：** 只要目标系统上安装了解释器，就可以执行程序，不需要重新编译。
+>
+> ​	•	**调试方便：** 由于逐行执行，调试和错误定位相对容易。
+>
+> ​	•	**缺点：**
+>
+> ​	•	**执行效率较低：** 由于需要逐行解释并执行，每次执行都需要进行解释，导致执行速度较慢。
+>
+> ​	•	**需要解释器：** 需要一个适当的解释器来运行程序，依赖环境。
+>
+> 
+>
+> **2️⃣ 编译型语言（Compiled Language）**
+>
+> ​	•	**执行方式：** 编译型语言在程序运行之前通过编译器将源代码转换为目标机器码或中间代码，生成可执行文件。然后，操作系统直接执行这些可执行文件。
+>
+> ​	•	**执行过程：** 编译的过程是在程序运行前进行的，编译器将整个程序编译成目标代码（机器代码或中间代码），执行时不再需要编译器，只直接运行编译后的可执行文件。
+>
+> ​	•	**常见语言：** C、C++、Rust、Go、Swift、Fortran等。
+>
+> ​	•	**优缺点：**
+>
+> ​	•	**优点：**
+>
+> ​	•	**执行效率高：** 由于已经被编译成机器码，程序运行时不需要额外的翻译过程，执行速度快。
+>
+> ​	•	**无需依赖编译器：** 编译后的可执行文件不再需要源代码或编译器，直接运行即可。
+>
+> ​	•	**缺点：**
+>
+> ​	•	**跨平台性差：** 生成的可执行文件依赖于平台（如操作系统和硬件架构），需要针对不同平台重新编译。
+>
+> ​	•	**调试较困难：** 由于没有逐行执行源代码，调试时通常需要额外的调试工具，错误定位较为复杂。
+>
 
-​	•	**执行方式：** 解释型语言通过解释器逐行解释源代码，并在运行时即时执行。也就是说，程序的每一行代码在执行时都会被解释器逐行读取并转换为机器码。
-
-​	•	**执行过程：** 在运行时，解释器会逐行分析源代码，并执行相应的操作。每次执行时，解释器都需要重新解析源代码。
-
-​	•	**常见语言：** Python、JavaScript、Ruby、PHP、Perl等。
-
-​	•	**优缺点：**
-
-​	•	**优点：**
-
-​	•	**跨平台性强：** 只要目标系统上安装了解释器，就可以执行程序，不需要重新编译。
-
-​	•	**调试方便：** 由于逐行执行，调试和错误定位相对容易。
-
-​	•	**缺点：**
-
-​	•	**执行效率较低：** 由于需要逐行解释并执行，每次执行都需要进行解释，导致执行速度较慢。
-
-​	•	**需要解释器：** 需要一个适当的解释器来运行程序，依赖环境。
 
 
+## RAII
 
-**2️⃣ 编译型语言（Compiled Language）**
+RAII（Resource Acquisition Is Initialization，资源获取即初始化），RAII机制的核心思想是通过构造函数获取资源，并通过析构函数释放资源，从而确保资源的正确管理和自动释放，避免资源泄漏或忘记释放资源。
 
-​	•	**执行方式：** 编译型语言在程序运行之前通过编译器将源代码转换为目标机器码或中间代码，生成可执行文件。然后，操作系统直接执行这些可执行文件。
+- **内存管理**：使用std::vector、std::unique_ptr等智能指针来管理动态分配的内存。
 
-​	•	**执行过程：** 编译的过程是在程序运行前进行的，编译器将整个程序编译成目标代码（机器代码或中间代码），执行时不再需要编译器，只直接运行编译后的可执行文件。
+- **文件操作**：通过std::ifstream、std::ofstream等文件流对象，文件会在对象销毁时自动关闭。
 
-​	•	**常见语言：** C、C++、Rust、Go、Swift、Fortran等。
+```cpp
+lass FileManager {
+private:
+    std::fstream file;
 
-​	•	**优缺点：**
+public:
+    // 构造函数：打开文件
+    FileManager(const std::string& filename) {
+        file.open(filename, std::ios::in | std::ios::out);
+        if (!file) {
+            throw std::ios_base::failure("Failed to open file");
+        }
+        std::cout << "File opened\n";
+    }
 
-​	•	**优点：**
+    // 析构函数：关闭文件
+    ~FileManager() {
+        if (file.is_open()) {
+            file.close();
+            std::cout << "File closed\n";
+        }
+    }
 
-​	•	**执行效率高：** 由于已经被编译成机器码，程序运行时不需要额外的翻译过程，执行速度快。
+    void writeData(const std::string& data) {
+        file << data;
+    }
 
-​	•	**无需依赖编译器：** 编译后的可执行文件不再需要源代码或编译器，直接运行即可。
+    std::string readData() {
+        std::string data;
+        file >> data;
+        return data;
+    }
+};
+```
 
-​	•	**缺点：**
-
-​	•	**跨平台性差：** 生成的可执行文件依赖于平台（如操作系统和硬件架构），需要针对不同平台重新编译。
-
-​	•	**调试较困难：** 由于没有逐行执行源代码，调试时通常需要额外的调试工具，错误定位较为复杂。
-
+- **互斥锁管理**：通过std::lock_guard、std::unique_lock等对象来管理锁，当对象超出作用域时自动释放锁，避免死锁。
