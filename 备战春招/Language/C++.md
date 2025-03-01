@@ -998,7 +998,7 @@ int main() {
 >   arr = (int*)realloc(arr, 20 * sizeof(int)); // 扩展为20个int的空间
 >   ```
 
-## strcpy / memcpy / memmove
+## 🆕🌟strcpy / memcpy / memmove
 
 ### strcpy与memcpy的区别
 
@@ -1124,10 +1124,10 @@ int main() {
 >
 >   ```cpp
 >   #include <iostream>
->             
+>               
 >   class Empty {};
 >   class Derived : public Empty {};
->             
+>               
 >   int main() {
 >       std::cout << "Size of Derived: " << sizeof(Derived) << " bytes" << std::endl;   //Size of Derived: 1 bytes
 >       return 0;
@@ -1182,7 +1182,7 @@ Go 设计 struct{} 的初衷是**高效、简洁**，如果结构体不包含任
 >
 >    ```bash
 >    g++ -c main.s -o main.o
->                                                                                     
+>                                                                                        
 >    objdump -d main.o  #机械码文件通过objdump查看
 >    ```
 >

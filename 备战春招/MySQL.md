@@ -28,46 +28,32 @@
 ## 一条SQL语句执行顺序
 
 ```mysql
-SELECT col1, SUM(col2) AS total
-FROM table1
-WHERE col3 = 'value'
-GROUP BY col1
+SELECT a.col1, b.col2, SUM(a.col3) AS total
+FROM table1 a
+INNER JOIN table2 b ON a.id = b.a_id
+WHERE b.col4 = 'value'
+GROUP BY a.col1, b.col2
 HAVING total > 100
 ORDER BY total DESC
 LIMIT 10;
 ```
 
-**执行顺序解释**
+| **执行顺序** | **步骤**     | **说明**                                            |
+| ------------ | ------------ | --------------------------------------------------- |
+| 1️⃣            | FROM 和 JOIN | 执行连接操作，合并 table1 和 table2。               |
+| 2️⃣            | ON           | 根据连接条件（如 ON a.id = b.a_id）匹配表中的记录。 |
+| 3️⃣            | WHERE        | 在连接后的数据中应用过滤条件。                      |
+| 4️⃣            | GROUP BY     | 根据 GROUP BY 子句进行分组。                        |
+| 5️⃣            | HAVING       | 在分组后的数据上应用条件，过滤分组后的结果。        |
+| 6️⃣            | SELECT       | 选择需要返回的列，包括计算的聚合值。                |
+| 7️⃣            | ORDER BY     | 对结果集进行排序。                                  |
+| 8️⃣            | LIMIT        | 限制返回的行数。                                    |
 
-​	1.	**FROM table1**
+**重要提示**
 
-加载 table1 的所有数据。
+​	•	JOIN 发生在 FROM 阶段，因此它是 SQL 执行过程中的 **最早步骤**。在它之后，WHERE 进行筛选，GROUP BY 进行分组，HAVING 进行分组后的筛选，最后是结果排序和限制返回记录的行数。
 
-​	2.	**WHERE col3 = ‘value’**
-
-筛选出 col3 等于 'value' 的行。
-
-​	3.	**GROUP BY col1**
-
-按照 col1 分组，将同一组的行归为一组。
-
-​	4.	**SELECT col1, SUM(col2) AS total**
-
-计算每组中 col2 的总和，返回 col1 和聚合结果 total。
-
-​	5.	**HAVING total > 100**
-
-对分组后的结果进行过滤，保留 SUM(col2) 大于 100 的组。
-
-​	6.	**ORDER BY total DESC**
-
-按照聚合结果 total 的降序排列。
-
-​	7.	**LIMIT 10**
-
-返回前 10 条结果。
-
-
+​	•	如果是多个连接（例如 LEFT JOIN 和 INNER JOIN 混用），执行顺序会按各自的位置依次处理连接。
 
 
 
@@ -144,6 +130,43 @@ InnoDB 里的 B+ 树中的**每个节点都是一个数据页**，结构示意�
 
 - **分区（Partitioning）**：大数据量表可以使用 **分区表**，加速查询。
 - **分库分表**：当单表数据量过大（超过 1000 万行），考虑**水平分表（Sharding）** 或 **垂直拆分（Vertical Partitioning）**。
+
+
+
+## 🆕🌟left join 与 right join 区别
+
+LEFT JOIN 和 RIGHT JOIN 都是用于多表查询的 **外连接**，它们的主要区别在于 **哪个表的数据会被完整保留**。
+
+1. `left join`
+
+**以左表（A）为主表**，即使 ON 条件不匹配，左表的数据仍会保留，**左表所有数据+匹配的右表数据**
+
+```mysql
+SELECT * FROM A 
+LEFT JOIN B ON A.id = B.a_id;
+```
+
+2. `right join`
+
+**以右表（B）为主表**，即使 ON 条件不匹配，右表的数据仍会保留，**右表所有数据+匹配的左表数据**
+
+```mysql
+SELECT * FROM A 
+RIGHT JOIN B ON A.id = B.a_id;
+```
+
+3. 内连接（`inner join`）
+
+与外连接不同，内连接只返回 **两个表中都存在的匹配记录**，如果某一表没有匹配到对应的记录，那么这条记录将不会出现在查询结果中。
+
+```mysql
+SELECT columns
+FROM table1
+INNER JOIN table2
+ON table1.column = table2.column;
+```
+
+
 
 # 索引
 
