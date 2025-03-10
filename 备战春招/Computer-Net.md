@@ -277,13 +277,35 @@ Upgrade：用于协议升级（如 Upgrade: websocket）
 
 ### 数字证书颁发和验证
 
+#### 颁发
+
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250114%E4%B8%8A%E5%8D%88120830275.png" alt="image-20250114上午120830275" style="zoom:50%;" />
 
 - 首先 CA 会把持有者的公钥、用途、颁发者、有效时间等信息打成一个包，然后对这些信息进行 Hash 计算，得到一个 Hash 值；
 - 然后 CA 会使用自己的私钥将该 Hash 值加密，生成 Certificate Signature，也就是 CA 对证书做了签名；
 - 最后将 Certificate Signature 添加在文件证书上，形成数字证书；
 
+#### 验证
 
+✅ **检查证书是否过期**
+
+​	•确保证书的 Not Before 和 Not After 在当前时间范围内。
+
+✅ **检查证书域名是否匹配**
+
+​	•证书中的 Common Name (CN) 或 Subject Alternative Name (SAN) 是否与访问的域名一致。
+
+✅ **检查证书是否被吊销**
+
+​	•通过 **CRL（证书吊销列表）** 或 **OCSP（在线证书状态协议）** 查询证书是否已被吊销。
+
+✅ **验证 CA 可信性（证书链验证）**
+
+​	•客户端检查服务器证书的 **签名**，确保它是由可信的 **证书颁发机构（CA）** 签发的。
+
+​	•如果服务器的证书是由中级 CA 签发的，客户端会继续验证中级 CA 的证书，直到找到根 CA 证书。
+
+​	•根 CA 证书存储在操作系统或浏览器的 **信任库** 中，客户端只信任预装的根证书。
 
 ### 🌟基于TLS1.2的RSA握手
 
@@ -597,6 +619,10 @@ QUIC：通过连接ID定位，客户端和服务器可以各自选择一组 ID �
 - 拥塞控制（基于带宽估计、丢包和延迟反馈）。
 
 - 顺序和数据完整性保证。
+
+### 🌟如何生成序列号
+
+ 
 
 ## RPC与HTTP区别
 
@@ -929,7 +955,7 @@ https://mp.weixin.qq.com/s?__biz=MzU3Njk0MTc3Ng==&mid=2247486020&idx=1&sn=f7cf41
 
 
 
-#### 🆕🌟write/send/sendto区别和原理
+#### 🆕🌟write/send/sendto/sendmsg区别和原理
 
 > 在 Linux 网络编程中，`send()`, `sendto()` 和 `write()` 都是用于数据发送的系统调用，但它们的应用场景和底层原理有所不同。以下是它们的核心区别和原理总结：
 >
@@ -1011,6 +1037,41 @@ https://mp.weixin.qq.com/s?__biz=MzU3Njk0MTc3Ng==&mid=2247486020&idx=1&sn=f7cf41
 >
 >   - 内核将数据封装为 UDP 数据报，直接发送到指定地址。
 >   - 无连接状态下调用 `sendto()` 是 UDP 的标准用法。
+>
+> ### 4. **`sendmsg`**
+>
+> - **功能**：最灵活的发送接口，支持**多缓冲区、控制信息和目标地址**。
+>
+> - **参数**：
+>
+>   ```c
+>   ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags);
+>   ```
+>
+>   - `msg`: 封装了所有发送信息的结构体：
+>
+>     ```c
+>     struct msghdr {
+>         void         *msg_name;      // 目标地址（类似 sendto）
+>         socklen_t     msg_namelen;   // 地址长度
+>         struct iovec *msg_iov;      // 多个数据缓冲区（分散-聚集 I/O）
+>         int           msg_iovlen;   // 缓冲区数量
+>         void         *msg_control;  // 辅助数据（如控制信息）
+>         socklen_t     msg_controllen;
+>         int           msg_flags;    // 接收消息的标志（通常忽略）
+>     };
+>     ```
+>
+> - **适用场景**：
+>
+>   - 需要 **分散-聚集 I/O**（多个非连续缓冲区一次性发送）。
+>   - 发送 **控制信息**（如带外数据、文件描述符、IP 选项等）。
+>   - 复杂地址或协议需求（如 IPv6 多播）。
+>
+> - **特点**：
+>
+>   - 功能最强大，但参数也更复杂。
+>   - 支持单次系统调用发送多个数据块（`msg_iov` 数组）。
 >
 > ---
 >
@@ -1308,7 +1369,7 @@ int main() {
 
 ​	✅ **无连接、头部开销小**：UDP 省去了 TCP 的三次握手、连接维护等过程，数据直接发送，理论上更快。
 
-​	✅ **无流量控制、无拥塞控制**：UDP 不会因为丢包或网络拥塞而降低发送速度，适用于低延迟场景，如视频流、实时通信、游戏等。
+​	✅ **无流量控制、无拥塞控制、链接延时**：UDP 不会因为丢包或网络拥塞而降低发送速度，适用于低延迟场景，如视频流、实时通信、游戏等。
 
 **2️⃣ TCP 可能比 UDP 更快的情况**
 
@@ -1392,7 +1453,7 @@ int main() {
 
 ## ping的工作原理
 
-<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250124%E4%B8%8B%E5%8D%8821915857.png" alt="image-20250124下午21915857" style="zoom:50%;" />
+<img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250124%E4%B8%8B%E5%8D%8821915857.png" alt="image-20250124下午21915857"  />
 
 <img src="https://typora-dusong.oss-cn-chengdu.aliyuncs.com/image-20250124%E4%B8%8B%E5%8D%8822115556.png" alt="image-20250124下午22115556" style="zoom:50%;" />
 
